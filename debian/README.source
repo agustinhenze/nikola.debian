@@ -1,0 +1,16 @@
+Repackaging upstream source
+===========================
+
+nikola's original upstream source has been repackage to exclude DFSG-compliant
+components (minified JavaScript and Stylesheets) from it:
+
+$ diff -ruN nikola-4.0.3-old/ nikola-4.0.3/ | diffstat 
+ css/bootstrap-responsive.min.css |    9 ---------
+ css/bootstrap.min.css            |    9 ---------
+ js/bootstrap.min.js              |    6 ------
+ js/jquery-1.7.2.min.js           |    4 ----
+ js/jquery.colorbox-min.js        |    4 ----
+ 5 files changed, 32 deletions(-)
+
+
+ -- Ulises Vitulli <dererk@debian.org>  Thu, 15 Nov 2012 11:23:07 -0300

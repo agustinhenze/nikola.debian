@@ -1,0 +1,44 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+PYVERS :=  python2.7
+
+%:
+	dh $@ --with python2
+
+override_dh_auto_build:
+
+override_dh_auto_clean:
+	dh_auto_clean -- --all
+	rm -rf build
+
+override_dh_auto_install:
+	dh_auto_install
+	set -ex; \
+	for py in $(PYVERS); do \
+		$$py setup.py install --root debian/nikola \
+				      --install-layout=deb; \
+	done
+	# Documentation
+	mkdir -p debian/nikola/usr/share/doc/nikola; \
+		rst2html docs/manual.txt debian/nikola/usr/share/doc/nikola/manual.html; \
+		rst2html docs/theming.txt debian/nikola/usr/share/doc/nikola/theming.html;
+	# Manpage
+	rm debian/nikola/usr/*.txt
+	rst2man debian/man/nikola.rst debian/nikola.1
+	rst2man debian/man/nikola_check.rst debian/nikola_check.1
+	rst2man debian/man/nikola_import_wordpress.rst debian/nikola_import_wordpress.1
+	# Remove embedded code from other software pieces
+	# PyRSS2Gen, provided by python-pyrss2gen on runtime-dep
+	rm debian/nikola/usr/lib/python2.7/dist-packages/nikola/PyRSS2Gen.py
+
+override_dh_link:
+	# Remove embedded code from other software pieces
+	# Bootstrap, provided by libjs-twitter-bootstrap on runtime-dep
+	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/js/bootstrap.js
+	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap-responsive.css
+	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap.css
+	dh_link

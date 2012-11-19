@@ -1,0 +1,11 @@
+nikola (4.0.3-2) unstable; urgency=low
+
+  * Fix broken symlinks not being included on the repkg source.
+
+ -- Agustin Henze <tin@sluc.org.ar>  Mon, 19 Nov 2012 20:34:44 -0300
+
+nikola (4.0.3-1) unstable; urgency=low
+
+  * Initial release (Closes: #690159).
+
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 09 Oct 2012 18:10:41 -0300

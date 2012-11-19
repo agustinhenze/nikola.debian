@@ -1,0 +1,52 @@
+Source: nikola
+Section: python
+Priority: optional
+Maintainer: Agustin Henze <tin@sluc.org.ar>
+Uploaders: Ulises Vitulli <dererk@debian.org>
+Build-Depends: debhelper (>= 9)
+Build-Depends-Indep: python-all,
+ python-support (>= 1),
+ python-setuptools,
+ python-docutils,
+Standards-Version: 3.9.3
+X-Python-Version: >= 2.7
+Homepage: http://nikola.ralsina.com.ar/
+
+Package: nikola
+Architecture: all
+Depends: ${python:Depends}, ${misc:Depends},
+ python-doit,
+ python-pygments,
+ python-imaging,
+ python-docutils,
+ python-mako,
+ python-unidecode,
+ python-lxml,
+ python-yapsy,
+ python-pyrss2gen,
+ libjs-jquery,
+ libjs-jquery-colorbox,
+ libjs-twitter-bootstrap,
+Recommends: python-webassets
+Suggests: python-jinja2
+Description: simple yet powerful and flexible static website and blog generator
+ Nikola is a static site and blog generator. Feed information to it on one
+ side and get a ready-to-deploy website on the other.
+ .
+ Nikola goodies on generating static pages are, between others, that:
+  * Static websites are safer, no database nor dynamic code interpreter needed
+  * They use fewer resources
+  * You avoid vendor and platform lockin.
+ .
+ Between some of Nikola's features you may find:
+    * Blog generator, including tags, feeds, archives, comments, etc.
+    * Theme support
+    * Fast building process, thanks to doit
+    * Easy Image Gallery, just drop files in a folder!
+    * reStructuredText or Markdown as Input languages
+    * Flexible design
+    * Small codebase.
+    * Syntax highlighting for almost any programming language or markup
+    * Multi-language sites
+    * Small, since based on leverages existing tools
+    * Between others

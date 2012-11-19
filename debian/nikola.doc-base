@@ -1,0 +1,9 @@
+Document: nikola-reference-manual
+Title: Nikola User Manual
+Author: Roberto Alsina
+Abstract: Static Site and Blog Generator
+Section: Programming/Python
+
+Format: HTML
+Index: /usr/share/doc/nikola/manual.html
+Files: /usr/share/doc/nikola/*.html
