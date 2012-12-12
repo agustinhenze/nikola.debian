@@ -1,0 +1,17 @@
+{% extends "base.tmpl" %}
+{% block sourcelink %}{% endblock %}
+
+{% block content %}
+    {% if text %}
+    <p>
+        {{ text }}
+    </p>
+    {% endif %}
+    <ul class="thumbnails">
+        {% for image in images %}
+            <li><a href="{{image[0]}}" class="thumbnail image-reference"><img src="{{image[2]}}" /></a></li>
+                <img src="${image[1]}" /></a></li>
+        {% endfor %}
+    </ul>
+{% endblock %}
+

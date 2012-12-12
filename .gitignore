@@ -1,0 +1,8 @@
+*.py[co]
+*.db
+*.html
+tmp/
+output/
+build/
+*.egg-info/
+*~
