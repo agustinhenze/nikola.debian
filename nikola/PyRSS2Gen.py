@@ -1,5 +1,7 @@
 """PyRSS2Gen - A Python library for generating RSS 2.0 feeds."""
 
+# flake8: noqa
+
 __name__ = "PyRSS2Gen"
 __version__ = (1, 0, 0)
 __author__ = "Andrew Dalke <dalke@dalkescientific.com>"
@@ -7,11 +9,7 @@ __author__ = "Andrew Dalke <dalke@dalkescientific.com>"
 _generator_name = __name__ + "-" + ".".join(map(str, __version__))
 
 import datetime
-try:
-    import cStringIO
-    StringIO = cStringIO
-except ImportError:
-    import StringIO
+import io
 
 # Could make this the base class; will need to add 'publish'
 class WriteXmlMixin:
@@ -23,7 +21,7 @@ class WriteXmlMixin:
         handler.endDocument()
 
     def to_xml(self, encoding = "iso-8859-1"):
-        f = StringIO.StringIO()
+        f = io.StringIO()
         self.write_xml(f, encoding)
         return f.getvalue()
 

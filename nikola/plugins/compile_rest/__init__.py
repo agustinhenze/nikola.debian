@@ -1,13 +1,6 @@
-"""Implementation of compile_html based on reStructuredText and docutils."""
-
-__all__ = ['compile_html']
-
 import codecs
 import os
 
-########################################
-# custom rst directives and renderer
-########################################
 import docutils.core
 import docutils.io
 from docutils.parsers.rst import directives
@@ -24,23 +17,31 @@ pygments_code_block_directive
 from youtube import youtube
 directives.register_directive('youtube', youtube)
 
+from nikola.plugin_categories import PageCompiler
 
-def compile_html(source, dest):
-    try:
-        os.makedirs(os.path.dirname(dest))
-    except:
-        pass
-    error_level = 100
-    with codecs.open(dest, "w+", "utf8") as out_file:
-        with codecs.open(source, "r", "utf8") as in_file:
-            data = in_file.read()
-            output, error_level = rst2html(data,
-                settings_overrides={'initial_header_level': 2})
-            out_file.write(output)
-    if error_level < 3:
-        return True
-    else:
-        return False
+
+class CompileRest(PageCompiler):
+    """Compile reSt into HTML."""
+
+    name = "rest"
+
+    def compile_html(self, source, dest):
+        """Compile reSt into HTML."""
+        try:
+            os.makedirs(os.path.dirname(dest))
+        except:
+            pass
+        error_level = 100
+        with codecs.open(dest, "w+", "utf8") as out_file:
+            with codecs.open(source, "r", "utf8") as in_file:
+                data = in_file.read()
+                output, error_level = rst2html(data,
+                    settings_overrides={'initial_header_level': 2})
+                out_file.write(output)
+        if error_level < 3:
+            return True
+        else:
+            return False
 
 
 def rst2html(source, source_path=None, source_class=docutils.io.StringInput,

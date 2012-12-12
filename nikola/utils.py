@@ -1,53 +1,59 @@
 """Utility functions."""
 
 from collections import defaultdict
-import cPickle
 import datetime
 import hashlib
 import os
 import re
 import codecs
+import json
 import shutil
 import string
 import subprocess
 import sys
 from zipfile import ZipFile as zip
 
+from doit import tools
 from unidecode import unidecode
 
 import PyRSS2Gen as rss
 
 __all__ = ['get_theme_path', 'get_theme_chain', 'load_messages', 'copy_tree',
-    'get_compile_html', 'get_template_module', 'generic_rss_renderer',
+    'generic_rss_renderer',
     'copy_file', 'slugify', 'unslugify', 'get_meta', 'to_datetime',
     'apply_filters', 'config_changed']
 
 
-class config_changed(object):
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        try:
+            return json.JSONEncoder.default(self, obj)
+        except TypeError:
+            s = repr(obj).split('0x', 1)[0]
+            return s
+
+
+class config_changed(tools.config_changed):
     """ A copy of doit's but using pickle instead of serializing manually."""
 
-    def __init__(self, config):
-        self.config = config
-
-    def __call__(self, task, values):
-        config_digest = None
+    def _calc_digest(self):
         if isinstance(self.config, basestring):
-            config_digest = self.config
+            return self.config
         elif isinstance(self.config, dict):
-            data = cPickle.dumps(self.config)
-            config_digest = hashlib.md5(data).hexdigest()
+            data = json.dumps(self.config, cls=CustomEncoder)
+            if isinstance(data, unicode):  # pragma: no cover # python3
+                byte_data = data.encode("utf-8")
+            else:
+                byte_data = data
+            return hashlib.md5(byte_data).hexdigest()
         else:
-            raise Exception(('Invalid type of config_changed parameter got %s'
-                + ', must be string or dict') % (type(self.config),))
+            raise Exception(
+                ('Invalid type of config_changed parameter got %s' +
+                 ', must be string or dict') % (type(self.config),))
 
-        def _save_config():
-            return {'_config_changed': config_digest}
-
-        task.insert_action(_save_config)
-        last_success = values.get('_config_changed')
-        if last_success is None:
-            return False
-        return (last_success == config_digest)
+    def __repr__(self):
+        return "Change with config: %s" % json.dumps(
+            self.config, cls=CustomEncoder)
 
 
 def get_theme_path(theme):
@@ -66,7 +72,7 @@ def get_theme_path(theme):
 
 
 def re_meta(line, match):
-    """ re.compile for meta"""
+    """re.compile for meta"""
     reStr = re.compile('^%s(.*)' % re.escape(match))
     result = reStr.findall(line)
     if result:
@@ -123,19 +129,6 @@ def get_template_engine(themes):
     # default
     return 'mako'
 
-def get_theme_bundles(themes):
-    """Given a theme chain, return the bundle definitions."""
-    bundles = {}
-    for theme_name in themes:
-        bundles_path = os.path.join(get_theme_path(theme_name), 'bundles')
-        if os.path.isfile(bundles_path):
-            with open(bundles_path) as fd:
-                for line in fd:
-                    name, files = line.split('=')
-                    files = [f.strip() for f in files.split(',')]
-                    bundles[name.strip()] = files
-                break
-    return bundles
 
 def get_theme_chain(theme):
     """Create the full theme inheritance chain."""
@@ -164,14 +157,23 @@ def load_messages(themes, translations):
     and "younger" themes have priority.
     """
     messages = defaultdict(dict)
+    warned = []
     for theme_name in themes[::-1]:
         msg_folder = os.path.join(get_theme_path(theme_name), 'messages')
         oldpath = sys.path
         sys.path.insert(0, msg_folder)
+        english = __import__('en')
         for lang in translations.keys():
             # If we don't do the reload, the module is cached
             translation = __import__(lang)
             reload(translation)
+            if sorted(translation.MESSAGES.keys()) !=\
+                sorted(english.MESSAGES.keys()) and \
+                lang not in warned:
+                # FIXME: get real logging in place
+                print "Warning: Incomplete translation for language '%s'." % lang
+                warned.append(lang)
+            messages[lang].update(english.MESSAGES)
             messages[lang].update(translation.MESSAGES)
             del(translation)
         sys.path = oldpath
@@ -214,84 +216,6 @@ def copy_tree(src, dst, link_cutoff=None):
                 'actions': [(copy_file, (src_file, dst_file, link_cutoff))],
                 'clean': True,
             }
-
-
-def get_compile_html(input_format):
-    """Setup input format library."""
-    if input_format == "rest":
-        import rest
-        compile_html = rest.compile_html
-    elif input_format == "markdown":
-        import md
-        compile_html = md.compile_html
-    elif input_format == "html":
-        compile_html = copy_file
-    return compile_html
-
-
-class CompileHtmlGetter(object):
-    """Get the correct compile_html for a file, based on file extension.
-
-    This class exists to provide a closure for its `__call__` method.
-    """
-    def __init__(self, post_compilers):
-        """Store post_compilers for use by `__call__`.
-
-        See the structure of `post_compilers` in conf.py
-        """
-        self.post_compilers = post_compilers
-        self.inverse_post_compilers = {}
-
-    def __call__(self, source_name):
-        """Get the correct compiler for a post from `conf.post_compilers`
-
-        To make things easier for users, the mapping in conf.py is
-        compiler->[extensions], although this is less convenient for us. The
-        majority of this function is reversing that dictionary and error
-        checking.
-        """
-        ext = os.path.splitext(source_name)[1]
-        try:
-            compile_html = self.inverse_post_compilers[ext]
-        except KeyError:
-            # Find the correct compiler for this files extension
-            langs = [lang for lang, exts in
-                     self.post_compilers.items()
-                     if ext in exts]
-            if len(langs) != 1:
-                if len(set(langs)) > 1:
-                    exit("Your file extension->compiler definition is"
-                         "ambiguous.\nPlease remove one of the file extensions"
-                         "from 'post_compilers' in conf.py\n(The error is in"
-                         "one of %s)" % ', '.join(langs))
-                elif len(langs) > 1:
-                    langs = langs[:1]
-                else:
-                    exit("post_compilers in conf.py does not tell me how to "
-                         "handle '%s' extensions." % ext)
-
-            lang = langs[0]
-            compile_html = get_compile_html(lang)
-
-            self.inverse_post_compilers[ext] = compile_html
-
-        return compile_html
-
-
-def get_template_module(template_engine, themes):
-    """Setup templating library."""
-    templates_module = None
-    if template_engine == "mako":
-        import mako_templates
-        templates_module = mako_templates
-    elif template_engine == "jinja":
-        import jinja_templates
-        templates_module = jinja_templates
-    templates_module.lookup = \
-        templates_module.get_template_lookup(
-        [os.path.join(get_theme_path(name), "templates")
-            for name in themes])
-    return templates_module
 
 
 def generic_rss_renderer(lang, title, link, description,

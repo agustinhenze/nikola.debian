@@ -2,34 +2,68 @@
 
 """Nikola main script."""
 
+from __future__ import print_function
 import os
-import shutil
 import sys
+
+# LIBDIR trick start (marker for removal on platforms that don't need it)
+libdir = '@LIBDIR@'
+
+# Two cases:
+if libdir != '@' 'LIBDIR' '@':
+    # Changed by our distutils hook, then use the given path.
+
+    if not os.path.isabs(libdir):
+        libdir = os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), libdir)
+        libdir = os.path.abspath(libdir)
+else:
+    # Unchanged, running from checkout,
+    # use the parent directory, the nikola package ought be there.
+    libdir = os.path.join(os.path.dirname(__file__), "..")
+
+sys.path.insert(0, libdir)
+
+if "PYTHONPATH" not in os.environ:
+    os.environ["PYTHONPATH"] = libdir
+else:
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ":" + libdir
+
+# LIBDIR trick end (marker for removal on platforms that don't need it)
 
 import nikola
 
-USAGE = """To create a new site in a folder, run "nikola init foldername [src]".
 
-The destination folder must not exist.
-
-If you pass the src argument, that folder will be used as a template for
-the new site instead of Nikola's sample site.
-"""
-
-
-def init(dst):
-    """Create a copy of demosite in the current folder."""
-    if len(sys.argv) > 3:
-        src = sys.argv[3]
-    else:
-        src = os.path.join(os.path.dirname(nikola.__file__),'data','samplesite')
-    shutil.copytree(src, dst)
-    print "A new site with some sample data has been created at %s." % dst
-    print "See README.txt in that folder for more information."
+def print_help(site):
+    print("Usage: nikola command [options]")
+    print()
+    print("Available commands:")
+    print()
+    keys = sorted(site.commands.keys())
+    for name in keys:
+        print("nikola %s: %s" % (name, site.commands[name].short_help))
+    print()
+    print("For detailed help for a command, use nikola command --help")
 
 if __name__ == "__main__":
-    if len(sys.argv)>=3 and sys.argv[1] == "init":
-        print "Doing init"
-        init(sys.argv[2])
+
+    try:
+        sys.path.append('')
+        import conf
+        config = conf.__dict__
+    except ImportError:
+        config = {}
+
+    site = nikola.Nikola(**config)
+
+    if len(sys.argv) < 2:
+        sys.argv[1:] = 'help'
+    cmd_name = sys.argv[1]
+
+    if cmd_name in ("help", "--help", "-h"):
+        print_help(site)
+    elif cmd_name in site.commands:
+        site.commands[cmd_name].run(*sys.argv[2:])
     else:
-        print USAGE
+        print("Unknown command: %s" % cmd_name)
+        print_help(site)
