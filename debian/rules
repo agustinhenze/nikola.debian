@@ -14,6 +14,7 @@ override_dh_auto_build:
 override_dh_auto_clean:
 	dh_auto_clean -- --all
 	rm -rf build
+	rm -f debian/nikola.1
 
 override_dh_auto_install:
 	dh_auto_install
@@ -25,12 +26,10 @@ override_dh_auto_install:
 	# Documentation
 	mkdir -p debian/nikola/usr/share/doc/nikola; \
 		rst2html docs/manual.txt debian/nikola/usr/share/doc/nikola/manual.html; \
-		rst2html docs/theming.txt debian/nikola/usr/share/doc/nikola/theming.html;
+		rst2html docs/theming.txt debian/nikola/usr/share/doc/nikola/theming.html; \
+		rst2html docs/extending.txt debian/nikola/usr/share/doc/nikola/extending.html;
 	# Manpage
-	rm debian/nikola/usr/*.txt
-	rst2man debian/man/nikola.rst debian/nikola.1
-	rst2man debian/man/nikola_check.rst debian/nikola_check.1
-	rst2man debian/man/nikola_import_wordpress.rst debian/nikola_import_wordpress.1
+	rst2man docs/man/nikola.1 debian/nikola.1
 	# Remove embedded code from other software pieces
 	# PyRSS2Gen, provided by python-pyrss2gen on runtime-dep
 	rm debian/nikola/usr/lib/python2.7/dist-packages/nikola/PyRSS2Gen.py

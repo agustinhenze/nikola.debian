@@ -1,3 +1,21 @@
+nikola (5-1) unstable; urgency=low
+
+  * New upstream release, adds new features and fixes several bugs:
+    Features:
+     - Templates now know their name from template_name in their context.
+     - Made most of Nikola into Yapsy plugins.
+     - Recurse galleries/ and render each folder as a gallery.
+     - Breadcrumbs and folder links in image galleries.
+    Bugfixes:
+     - Fixed doc installation
+     - Put webassets cache in cache/webassets
+     - Don't crash on incomplete translations
+     - Fixed Issue 160: render_tags didn't call scan_posts()
+     - Fixed Issue 161: webassets setting USE_BUNDLES was ignored
+     - Fixed Issue 153: index.txt was being ignored in galleries.
+
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 12 Dec 2012 20:33:41 -0300
+
 nikola (4.0.3-2) unstable; urgency=low
 
   * Fix broken symlinks not being included on the repkg source.

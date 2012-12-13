@@ -1,0 +1,13 @@
+nikola (5-1) unstable; urgency=low
+
+  This version is not completely backwards compatible, thus the new major
+  version number, but switching to it should be easy-ish. If you are using
+  version 4.0.3:
+   - Remove your dodo.py
+   - Use nikola build instead of doit from now on
+   - Use nikola serve instead of doit serve, nikola new_post instead of doit
+     new_post, and so on. Some other doit task are also converted into nikola
+     command you can get the list using nikola help.
+
+
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 12 Dec 2012 20:39:20 -0300
