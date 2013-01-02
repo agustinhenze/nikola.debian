@@ -1,7 +1,7 @@
 The Nikola Handbook
 ===================
 
-:Version: 5
+:Version: 5.1
 :Author: Roberto Alsina <ralsina@netmanagers.com.ar>
 
 .. class:: alert alert-info pull-right
@@ -169,6 +169,8 @@ If you want to create a blog or a site, Nikola provides:
   `Markdown <http://daringfireball.net/projects/markdown/>`_)
 * Easy-to-create image galleries
 * Support for displaying source code
+* Image slideshows
+* Client-side cloud tags
 
 Also:
 
@@ -194,13 +196,13 @@ Longer version:
    #. ``pip install -r requirements.txt`` or...
    #. Install your distribution's packages for all the things
       mentioned below, if they exist, or...
-   #. Get all of these manually:
+   #. Get all of these manually (but why?, use requirements.txt):
 
       #. Get python, if you don't have it.
       #. Get `doit <http://python-doit.sf.net>`_
       #. Get `docutils <http://docutils.sf.net>`_
       #. Get `Mako <http://makotemplates.org>`_
-      #. Get `PIL <http://www.pythonware.com/products/pil/>`_
+      #. Get `PIL <http://www.pythonware.com/products/pil/>`_ (or Pillow)
       #. Get `Pygments <http://pygments.org/>`_
       #. Get `unidecode <http://pypi.python.org/pypi/Unidecode/>`_
       #. Get `lxml <http://lxml.de/>`_
@@ -212,10 +214,7 @@ Longer version:
 After that, run ``nikola init sitename`` and that will create a folder called
 ``sitename`` containing a functional demo site.
 
-.. note:: Are you using Ubuntu?
-
-   Then you can try using `my PPA <https://launchpad.net/~ralsina/+archive/nikola>`_
-   and installing python-nikola
+Nikola is packaged for some Linux distributions, you may get that instead.
 
 Getting Started
 ---------------
@@ -786,7 +785,7 @@ embed code like this::
 
         print "Hello World!"
 
-Or you can include the code from a file:
+Or you can include the code from a file::
 
     .. code-block:: python
        :include: /foo/bar/baz.py
@@ -797,10 +796,10 @@ listing
 To use this, you have to put your source code files inside ``listings`` or whatever your
 ``LISTINGS_FOLDER`` variable is set to. Assuming you have a ``foo.py`` inside that folder::
 
-    .. listing:: foo.py
+    .. listing:: foo.py python
 
-Will include the source code from ``foo.py`` and also create a ``listings/foo.py.html`` page
-and the listing will have a title linking to it.
+Will include the source code from ``foo.py``, highlight its syntax in python mode,
+and also create a ``listings/foo.py.html`` page and the listing will have a title linking to it.
 
 Advanced Code Options
 ~~~~~~~~~~~~~~~~~~~~~
@@ -822,10 +821,72 @@ linenos_offset
 tab-width
     Size of the tabs (default 4)
 
+Slideshows
+~~~~~~~~~~
+
+To create an image slideshow, you can use the ``slides`` directive. For example::
+
+    .. slides::     
+       :preload:
+       :play: 350
+        
+       /galleries/demo/tesla_conducts_lg.jpg
+       /galleries/demo/tesla_lightning2_lg.jpg
+       /galleries/demo/tesla4_lg.jpg
+       /galleries/demo/tesla_lightning1_lg.jpg
+       /galleries/demo/tesla_tower1_lg.jpg
+
+This is based on `slidejs <http://slidesjs.com/>`_ and it supports 
+`the options described there <http://slidesjs.com/#options>`_ with one minor tweak to make them
+fit in docutils convention: If the option takes a boolean value, you just have to add it or not. For example,
+to enable preloading, just use the ``:preload:`` option.
+
+If the option takes any other kind of argument, just use it after the option, like ``play`` in the 
+above example.
+
+Importing Your Wordpress Site Into Nikola
+-----------------------------------------
+
+If you like Nikola, and want to start using it, but you have a Wordpress blog, Nikola
+supports importing it. Here's the steps to do it:
+
+1) Get a XML dump of your site [#]_
+2) nikola import_wordpress mysite.wordpress.2012-12-20.xml
+
+After some time, this will crate a ``new_site`` folder with all your data. It currently supports
+the following:
+
+* All your posts and pages
+* Keeps "draft" status
+* Your tags and categories
+* Imports your attachments and fixes links to point to the right places
+* Will try to add redirects that send the old post URLs to the new ones
+* Will give you a url_map so you know where each old post was
+
+  This is also useful for Disqus thread migration!
+  
+* Will try to convert the content of your posts. This is *not* error free, because
+  wordpress uses some unholy  mix of HTML and strange things. Currently we are treating it
+  as markdown, which does a reasonabe job of it.
+  
+  You will find your old posts in ``new_site/posts/post-title.wp`` in case you need to fix 
+  any of them.
+  
+This feature is a work in progress, and the only way to improve it is to have it used for
+as many sites as possible and make it work better each time, so I am happy to get requests
+about it.
+
+.. [#] The dump needs to be in 1.2 format. You can check by reading it, it should say
+       ``xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"`` near the top of the
+       file. If it says ``1.1`` instead of ``1.2`` you will have to update your
+       wordpress before dumping.
+
+       Other versions may or may not work.
+  
 License
 -------
 
-Nikola is released under the `GPL version 3 <http://www.gnu.org/licenses/gpl-3.0.html>`_ which
+Nikola is released under a `MIT license <https://github.com/ralsina/nikola/blob/master/LICENSE.txt>`_ which
 is a free software license. Some components shipped along with Nikola, or required by it are
 released under other licenses.
 

@@ -1,3 +1,27 @@
+# Copyright (c) 2012 Roberto Alsina y otros.
+
+# Permission is hereby granted, free of charge, to any
+# person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the
+# Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice
+# shall be included in all copies or substantial portions of
+# the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+# OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 import os
 
 from nikola.plugin_categories import Task
@@ -21,7 +45,7 @@ class CopyAssets(Task):
             "output_folder": self.site.config['OUTPUT_FOLDER'],
             "filters": self.site.config['FILTERS'],
         }
-
+        flag = True
         tasks = {}
         for theme_name in kw['themes']:
             src = os.path.join(utils.get_theme_path(theme_name), 'assets')
@@ -32,4 +56,13 @@ class CopyAssets(Task):
                 tasks[task['name']] = task
                 task['uptodate'] = [utils.config_changed(kw)]
                 task['basename'] = self.name
+                flag = False
                 yield utils.apply_filters(task, kw['filters'])
+
+        if flag:
+            yield {
+                'basename': self.name,
+                'name': 'None',
+                'uptodate': [True],
+                'actions': [],
+            }

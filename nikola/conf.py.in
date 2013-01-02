@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
-
+<%text>
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 import os
+import time
 
 ########################################
 # Configuration, please edit
 ########################################
+</%text>
 
 # Data about this site
-BLOG_AUTHOR = "Your Name"
-BLOG_TITLE = "Demo Site"
-BLOG_URL = "http://nikola.ralsina.com.ar"
-BLOG_EMAIL = "joe@demo.site"
-BLOG_DESCRIPTION = "This is a demo site for Nikola."
+BLOG_AUTHOR = "${BLOG_AUTHOR}"
+BLOG_TITLE = "${BLOG_TITLE}"
+BLOG_URL = "${BLOG_URL}"
+BLOG_EMAIL = "${BLOG_EMAIL}"
+BLOG_DESCRIPTION = "${BLOG_DESCRIPTION}"
+
 
 # post_pages contains (wildcard, destination, template, use_in_feed) tuples.
 #
@@ -34,10 +39,7 @@ BLOG_DESCRIPTION = "This is a demo site for Nikola."
 # rss feeds.
 #
 
-post_pages = (
-    ("posts/*.txt", "posts", "post.tmpl", True),
-    ("stories/*.txt", "stories", "story.tmpl", False),
-)
+post_pages = ${POST_PAGES}
 
 # One or more folders containing files to be copied as-is into the output.
 # The format is a dictionary of "source" "relative destination".
@@ -52,11 +54,7 @@ post_pages = (
 # 'rest' is reStructuredText
 # 'markdown' is MarkDown
 # 'html' assumes the file is html and just copies it
-post_compilers = {
-    "rest": ('.txt', '.rst'),
-    "markdown": ('.md', '.mdown', '.markdown'),
-    "html": ('.html', '.htm')
-    }
+post_compilers = ${POST_COMPILERS}
 
 # Nikola is multilingual!
 #
@@ -76,13 +74,13 @@ post_compilers = {
 # in the default language will be shown instead.
 
 # What is the default language?
-DEFAULT_LANG = "en"
+DEFAULT_LANG = "${DEFAULT_LANG}"
 
 # What other languages do you have?
 # The format is {"translationcode" : "path/to/translation" }
 # the path will be used as a prefix for the generated pages location
 TRANSLATIONS = {
-    DEFAULT_LANG: "",
+    "${DEFAULT_LANG}": "",
     #"gr": "./gr",
     #"de": "./de",
     #"fr": "./fr",
@@ -126,7 +124,7 @@ SLUG_TAG_PATH = True
 #
 # If you don't need any of these, just set to []
 
-REDIRECTIONS = []
+REDIRECTIONS = ${REDIRECTIONS}
 
 # Commands to execute to deploy. Can be anything, for example,
 # you may use rsync:
@@ -140,6 +138,10 @@ DEPLOY_COMMANDS = []
 # to the location of conf.py
 
 OUTPUT_FOLDER = 'output'
+
+# where the "cache" of partial generated content should be located
+# default: 'cache'
+CACHE_FOLDER = 'cache'
 
 # Filters to apply to the output.
 # A directory where the keys are either: a file extensions, or
@@ -163,9 +165,9 @@ FILTERS = {
 #    ".jpg": ["jpegoptim --strip-all -m75 -v %s"],
 }
 
-##############################################################################
+# #############################################################################
 # Image Gallery Options
-##############################################################################
+# #############################################################################
 
 # Galleries are folders in galleries/
 # Final location of galleries will be output / GALLERY_PATH / gallery_name
@@ -174,9 +176,9 @@ THUMBNAIL_SIZE = 180
 MAX_IMAGE_SIZE = 1280
 USE_FILENAME_AS_TITLE = True
 
-##############################################################################
+# #############################################################################
 # HTML fragments and diverse things that are used by the templates
-##############################################################################
+# #############################################################################
 
 # Data about post-per-page indexes
 INDEXES_TITLE = ""  # If this is empty, the default is BLOG_TITLE
@@ -184,6 +186,9 @@ INDEXES_PAGES = ""  # If this is empty, the default is 'old posts page %d' trans
 
 # Name of the theme to use. Themes are located in themes/theme_name
 THEME = 'site'
+
+# date format used to display post dates. (str used by datetime.datetime.strftime)
+DATE_FORMAT = '%Y-%m-%d %H:%M'
 
 # Show only teasers in the index pages? Defaults to False.
 # INDEX_TEASERS = False
@@ -198,7 +203,10 @@ style="border-width:0; margin-bottom:12px;"
 src="http://i.creativecommons.org/l/by-nc-sa/2.5/ar/88x31.png"></a>"""
 
 # A small copyright notice for the page footer (in HTML)
-CONTENT_FOOTER = u'Contents &copy; 2012 Example Joe'
+CONTENT_FOOTER = 'Contents &copy; {date} <a href="mailto:{email}">{author}</a> - Powered by <a href="http://nikola.ralsina.com.ar">Nikola</a>'
+CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
+                                       author=BLOG_AUTHOR,
+                                       date=time.gmtime().tm_year)
 
 # To enable comments via Disqus, you need to create a forum at
 # http://disqus.com, and set DISQUS_FORUM to the short name you selected.
@@ -227,14 +235,14 @@ SEARCH_FORM = ""
 # appears on the navigation bar
 #SEARCH_FORM = """
 #<!-- Custom search -->
-#<form method="get" id="search" action="http://duckduckgo.com/" """\
-#"""class="navbar-form pull-left">
+#<form method="get" id="search" action="http://duckduckgo.com/"
+# class="navbar-form pull-left">
 #<input type="hidden" name="sites" value="%s"/>
 #<input type="hidden" name="k8" value="#444444"/>
 #<input type="hidden" name="k9" value="#D51920"/>
 #<input type="hidden" name="kt" value="h"/>
-#<input type="text" name="q" maxlength="255" """\
-#"""placeholder="Search&hellip;" class="span2" style="margin-top: 4px;"/>
+#<input type="text" name="q" maxlength="255"
+# placeholder="Search&hellip;" class="span2" style="margin-top: 4px;"/>
 #<input type="submit" value="DuckDuckGo Search" style="visibility: hidden;" />
 #</form>
 #<!-- End of custom search -->
@@ -253,6 +261,7 @@ GLOBAL_CONTEXT = {
     'blog_title': BLOG_TITLE,
     'blog_url': BLOG_URL,
     'blog_desc': BLOG_DESCRIPTION,
+    'date_format': DATE_FORMAT,
     'translations': TRANSLATIONS,
     'license': LICENSE,
     'search_form': SEARCH_FORM,

@@ -1,3 +1,29 @@
+# Copyright (c) 2012 Roberto Alsina y otros.
+
+# Permission is hereby granted, free of charge, to any
+# person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the
+# Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice
+# shall be included in all copies or substantial portions of
+# the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+# OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+#from __future__ import unicode_literals
+import json
 import os
 
 from nikola.plugin_categories import Task
@@ -30,10 +56,81 @@ class RenderTags(Task):
 
         if not self.site.posts_per_tag:
             yield {
-                    'basename': self.name,
+                    'basename': str(self.name),
                     'actions': [],
                 }
             return
+
+        for tag, posts in list(self.site.posts_per_tag.items()):
+            post_list = [self.site.global_data[post] for post in posts]
+            post_list.sort(key=lambda a: a.date)
+            post_list.reverse()
+            for lang in kw["translations"]:
+                yield self.tag_rss(tag, lang, posts, kw)
+
+                # Render HTML
+                if kw['tag_pages_are_indexes']:
+                    yield self.tag_page_as_index(tag, lang, post_list, kw)
+                else:
+                    yield self.tag_page_as_list(tag, lang, post_list, kw)
+
+        yield self.list_tags_page(kw)
+
+        # Tag cloud json file
+        tag_cloud_data = {}
+        for tag, posts in self.site.posts_per_tag.items():
+            tag_cloud_data[tag] = [len(posts), self.site.link(
+                'tag', tag, self.site.config['DEFAULT_LANG'])]
+        output_name = os.path.join(kw['output_folder'],
+            'assets','js','tag_cloud_data.json')
+            
+        def write_tag_data(data):
+            try:
+                os.makedirs(os.path.dirname(output_name))
+            except:
+                pass
+            with open(output_name, 'wb+') as fd:
+                fd.write(json.dumps(data))
+                
+        task = {
+            'basename': str(self.name),
+            'name': str(output_name)
+        }
+        task['uptodate'] = [utils.config_changed(tag_cloud_data)]
+        task['targets'] = [output_name]
+        task['actions'] = [(write_tag_data,[tag_cloud_data])]
+        yield task
+
+    def list_tags_page(self, kw):
+        """a global "all your tags" page for each language"""
+        tags = list(self.site.posts_per_tag.keys())
+        tags.sort()
+        template_name = "tags.tmpl"
+        kw['tags'] = tags
+        for lang in kw["translations"]:
+            output_name = os.path.join(
+                kw['output_folder'], self.site.path('tag_index', None, lang))
+            output_name = output_name.encode('utf8')
+            context = {}
+            context["title"] = kw["messages"][lang]["Tags"]
+            context["items"] = [(tag, self.site.link("tag", tag, lang))
+                for tag in tags]
+            context["permalink"] = self.site.link("tag_index", None, lang)
+            task = self.site.generic_post_list_renderer(
+                lang,
+                [],
+                output_name,
+                template_name,
+                kw['filters'],
+                context,
+            )
+            task_cfg = {1: task['uptodate'][0].config, 2: kw}
+            task['uptodate'] = [utils.config_changed(task_cfg)]
+            yield task
+
+
+    def tag_page_as_index(self, tag, lang, post_list, kw):
+        """render a sort of index page collection using only this tag's posts."""
 
         def page_name(tagname, i, lang):
             """Given tag, n, returns a page name."""
@@ -42,139 +139,104 @@ class RenderTags(Task):
                 name = name.replace('.html', '-%s.html' % i)
             return name
 
-        for tag, posts in self.site.posts_per_tag.items():
-            post_list = [self.site.global_data[post] for post in posts]
-            post_list.sort(cmp=lambda a, b: cmp(a.date, b.date))
-            post_list.reverse()
-            for lang in kw["translations"]:
-                #Render RSS
-                output_name = os.path.join(kw['output_folder'],
-                    self.site.path("tag_rss", tag, lang))
-                deps = []
-                post_list = [self.site.global_data[post] for post in posts
-                    if self.site.global_data[post].use_in_feeds]
-                post_list.sort(cmp=lambda a, b: cmp(a.date, b.date))
-                post_list.reverse()
-                for post in post_list:
-                    deps += post.deps(lang)
-                yield {
-                    'name': output_name.encode('utf8'),
-                    'file_dep': deps,
-                    'targets': [output_name],
-                    'actions': [(utils.generic_rss_renderer,
-                        (lang, "%s (%s)" % (kw["blog_title"], tag),
-                        kw["blog_url"], kw["blog_description"],
-                        post_list, output_name))],
-                    'clean': True,
-                    'uptodate': [utils.config_changed(kw)],
-                    'basename': self.name
-                }
-
-                # Render HTML
-                if kw['tag_pages_are_indexes']:
-                    # We render a sort of index page collection using only
-                    # this tag's posts.
-
-                    # FIXME: deduplicate this with render_indexes
-                    template_name = "index.tmpl"
-                    # Split in smaller lists
-                    lists = []
-                    while post_list:
-                        lists.append(post_list[
-                            :kw["index_display_post_count"]])
-                        post_list = post_list[
-                            kw["index_display_post_count"]:]
-                    num_pages = len(lists)
-                    for i, post_list in enumerate(lists):
-                        context = {}
-                        # On a tag page, the feeds include the tag's feeds
-                        rss_link = \
-                        """<link rel="alternate" type="application/rss+xml" """\
-                        """type="application/rss+xml" title="RSS for tag """\
-                        """%s (%s)" href="%s">""" % \
-                            (tag, lang, self.site.link("tag_rss", tag, lang))
-                        context['rss_link'] = rss_link
-                        output_name = os.path.join(kw['output_folder'],
-                            page_name(tag, i, lang))
-                        context["title"] = kw["messages"][lang][
-                            u"Posts about %s"] % tag
-                        context["prevlink"] = None
-                        context["nextlink"] = None
-                        context['index_teasers'] = kw['index_teasers']
-                        if i > 1:
-                            context["prevlink"] = os.path.basename(
-                                page_name(tag, i - 1, lang))
-                        if i == 1:
-                            context["prevlink"] = os.path.basename(
-                                page_name(tag, 0, lang))
-                        if i < num_pages - 1:
-                            context["nextlink"] = os.path.basename(
-                                page_name(tag, i + 1, lang))
-                        context["permalink"] = self.site.link("tag", tag, lang)
-                        context["tag"] = tag
-                        for task in self.site.generic_post_list_renderer(
-                            lang,
-                            post_list,
-                            output_name,
-                            template_name,
-                            kw['filters'],
-                            context,
-                        ):
-                            task['uptodate'] = [utils.config_changed({
-                                1: task['uptodate'][0].config,
-                                2: kw})]
-                            task['basename'] = self.name
-                            yield task
-                else:
-                    # We render a single flat link list with this tag's posts
-                    template_name = "tag.tmpl"
-                    output_name = os.path.join(kw['output_folder'],
-                        self.site.path("tag", tag, lang))
-                    context = {}
-                    context["lang"] = lang
-                    context["title"] = kw["messages"][lang][
-                        u"Posts about %s"] % tag
-                    context["items"] = [("[%s] %s" % (post.date,
-                        post.title(lang)),
-                        post.permalink(lang)) for post in post_list]
-                    context["permalink"] = self.site.link("tag", tag, lang)
-                    context["tag"] = tag
-                    for task in self.site.generic_post_list_renderer(
-                        lang,
-                        post_list,
-                        output_name,
-                        template_name,
-                        kw['filters'],
-                        context,
-                    ):
-                        task['uptodate'] = [utils.config_changed({
-                            1: task['uptodate'][0].config,
-                            2: kw})]
-                        task['basename'] = self.name
-                        yield task
-
-        # And global "all your tags" page
-        tags = self.site.posts_per_tag.keys()
-        tags.sort()
-        template_name = "tags.tmpl"
-        kw['tags'] = tags
-        for lang in kw["translations"]:
-            output_name = os.path.join(
-                kw['output_folder'], self.site.path('tag_index', None, lang))
+        # FIXME: deduplicate this with render_indexes
+        template_name = "index.tmpl"
+        # Split in smaller lists
+        lists = []
+        while post_list:
+            lists.append(post_list[:kw["index_display_post_count"]])
+            post_list = post_list[kw["index_display_post_count"]:]
+        num_pages = len(lists)
+        for i, post_list in enumerate(lists):
             context = {}
-            context["title"] = kw["messages"][lang][u"Tags"]
-            context["items"] = [(tag, self.site.link("tag", tag, lang))
-                for tag in tags]
-            context["permalink"] = self.site.link("tag_index", None, lang)
-            for task in self.site.generic_post_list_renderer(
+            # On a tag page, the feeds include the tag's feeds
+            rss_link = \
+            """<link rel="alternate" type="application/rss+xml" """\
+            """type="application/rss+xml" title="RSS for tag """\
+            """%s (%s)" href="%s">""" % \
+                (tag, lang, self.site.link("tag_rss", tag, lang))
+            context['rss_link'] = rss_link
+            output_name = os.path.join(kw['output_folder'],
+                page_name(tag, i, lang))
+            output_name = output_name.encode('utf8')
+            context["title"] = kw["messages"][lang][
+                "Posts about %s"] % tag
+            context["prevlink"] = None
+            context["nextlink"] = None
+            context['index_teasers'] = kw['index_teasers']
+            if i > 1:
+                context["prevlink"] = os.path.basename(
+                    page_name(tag, i - 1, lang))
+            if i == 1:
+                context["prevlink"] = os.path.basename(
+                    page_name(tag, 0, lang))
+            if i < num_pages - 1:
+                context["nextlink"] = os.path.basename(
+                    page_name(tag, i + 1, lang))
+            context["permalink"] = self.site.link("tag", tag, lang)
+            context["tag"] = tag
+            task = self.site.generic_post_list_renderer(
                 lang,
-                [],
+                post_list,
                 output_name,
                 template_name,
                 kw['filters'],
                 context,
-            ):
-                task['uptodate'] = [utils.config_changed({
-                    1: task['uptodate'][0].config,
-                    2: kw})]
-                yield task
+            )
+            task_cfg = {1: task['uptodate'][0].config, 2: kw}
+            task['uptodate'] = [utils.config_changed(task_cfg)]
+            task['basename'] = str(self.name)
+            yield task
+
+
+    def tag_page_as_list(self, tag, lang, post_list, kw):
+        """We render a single flat link list with this tag's posts"""
+        template_name = "tag.tmpl"
+        output_name = os.path.join(kw['output_folder'],
+            self.site.path("tag", tag, lang))
+        output_name = output_name.encode('utf8')
+        context = {}
+        context["lang"] = lang
+        context["title"] = kw["messages"][lang]["Posts about %s"] % tag
+        context["posts"] = post_list
+        context["permalink"] = self.site.link("tag", tag, lang)
+        context["tag"] = tag
+        task = self.site.generic_post_list_renderer(
+            lang,
+            post_list,
+            output_name,
+            template_name,
+            kw['filters'],
+            context,
+        )
+        task_cfg = {1: task['uptodate'][0].config, 2: kw}
+        task['uptodate'] = [utils.config_changed(task_cfg)]
+        task['basename'] = str(self.name)
+        yield task
+
+
+    def tag_rss(self, tag, lang, posts, kw):
+        """RSS for a single tag / language"""
+        #Render RSS
+        output_name = os.path.join(kw['output_folder'],
+            self.site.path("tag_rss", tag, lang))
+        output_name = output_name.encode('utf8')
+        deps = []
+        post_list = [self.site.global_data[post] for post in posts
+            if self.site.global_data[post].use_in_feeds]
+        post_list.sort(key=lambda a: a.date)
+        post_list.reverse()
+        for post in post_list:
+            deps += post.deps(lang)
+        return {
+            'basename': str(self.name),
+            'name': output_name,
+            'file_dep': deps,
+            'targets': [output_name],
+            'actions': [(utils.generic_rss_renderer,
+                (lang, "%s (%s)" % (kw["blog_title"], tag),
+                kw["blog_url"], kw["blog_description"],
+                post_list, output_name))],
+            'clean': True,
+            'uptodate': [utils.config_changed(kw)],
+        }
