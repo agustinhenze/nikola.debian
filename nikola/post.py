@@ -1,11 +1,34 @@
 # -*- coding: utf-8 -*-
+# Copyright (c) 2012 Roberto Alsina y otros.
+
+# Permission is hereby granted, free of charge, to any
+# person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the
+# Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice
+# shall be included in all copies or substantial portions of
+# the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+# OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import codecs
 import os
 
 import lxml.html
 
-import utils
+from . import utils
 
 __all__ = ['Post']
 
@@ -14,7 +37,7 @@ class Post(object):
 
     """Represents a blog post or web page."""
 
-    def __init__(self, source_path, destination, use_in_feeds,
+    def __init__(self, source_path, cache_folder, destination, use_in_feeds,
         translations, default_lang, blog_url, messages):
         """Initialize post.
 
@@ -32,7 +55,7 @@ class Post(object):
         self.source_path = source_path  # posts/blah.txt
         self.post_name = os.path.splitext(source_path)[0]  # posts/blah
         # cache/posts/blah.html
-        self.base_path = os.path.join('cache', self.post_name + ".html")
+        self.base_path = os.path.join(cache_folder, self.post_name + ".html")
         self.metadata_path = self.post_name + ".meta"  # posts/blah.meta
         self.folder = destination
         self.translations = translations
@@ -56,7 +79,7 @@ class Post(object):
 
         self.date = utils.to_datetime(self.date)
         self.tags = [x.strip() for x in self.tags.split(',')]
-        self.tags = filter(None, self.tags)
+        self.tags = [_f for _f in self.tags if _f]
 
         # While draft comes from the tags, it's not really a tag
         self.use_in_feeds = use_in_feeds and "draft" not in self.tags
@@ -123,7 +146,7 @@ class Post(object):
         if os.path.isfile(self.metadata_path):
             deps.append(self.metadata_path)
         if lang != self.default_lang:
-            lang_deps = filter(os.path.exists, [x + "." + lang for x in deps])
+            lang_deps = list(filter(os.path.exists, [x + "." + lang for x in deps]))
             deps += lang_deps
         return deps
 
@@ -166,7 +189,7 @@ class Post(object):
         pieces = list(os.path.split(self.translations[lang]))
         pieces += list(os.path.split(self.folder))
         pieces += [self.pagenames[lang] + extension]
-        pieces = filter(None, pieces)
+        pieces = [_f for _f in pieces if _f]
         if absolute:
             pieces = [self.blog_url] + pieces
         else:

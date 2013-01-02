@@ -1,6 +1,31 @@
+# Copyright (c) 2012 Roberto Alsina y otros.
+
+# Permission is hereby granted, free of charge, to any
+# person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the
+# Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice
+# shall be included in all copies or substantial portions of
+# the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+# OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 """Utility functions."""
 
-from collections import defaultdict
+from __future__ import print_function
+from collections import defaultdict, Callable
 import datetime
 import hashlib
 import os
@@ -12,11 +37,15 @@ import string
 import subprocess
 import sys
 from zipfile import ZipFile as zip
+try:
+    from imp import reload
+except ImportError:
+    pass
 
 from doit import tools
 from unidecode import unidecode
 
-import PyRSS2Gen as rss
+from . import PyRSS2Gen as rss
 
 __all__ = ['get_theme_path', 'get_theme_chain', 'load_messages', 'copy_tree',
     'generic_rss_renderer',
@@ -37,11 +66,11 @@ class config_changed(tools.config_changed):
     """ A copy of doit's but using pickle instead of serializing manually."""
 
     def _calc_digest(self):
-        if isinstance(self.config, basestring):
+        if isinstance(self.config, str):
             return self.config
         elif isinstance(self.config, dict):
             data = json.dumps(self.config, cls=CustomEncoder)
-            if isinstance(data, unicode):  # pragma: no cover # python3
+            if isinstance(data, str):  # pragma: no cover # python3
                 byte_data = data.encode("utf-8")
             else:
                 byte_data = data
@@ -68,7 +97,7 @@ def get_theme_path(theme):
         'data', 'themes', theme)
     if os.path.isdir(dir_name):
         return dir_name
-    raise Exception(u"Can't find theme '%s'" % theme)
+    raise Exception("Can't find theme '%s'" % theme)
 
 
 def re_meta(line, match):
@@ -158,25 +187,25 @@ def load_messages(themes, translations):
     """
     messages = defaultdict(dict)
     warned = []
+    oldpath = sys.path[:]
     for theme_name in themes[::-1]:
         msg_folder = os.path.join(get_theme_path(theme_name), 'messages')
-        oldpath = sys.path
         sys.path.insert(0, msg_folder)
-        english = __import__('en')
-        for lang in translations.keys():
+        english = __import__('messages_en')
+        for lang in list(translations.keys()):
             # If we don't do the reload, the module is cached
-            translation = __import__(lang)
+            translation = __import__('messages_'+lang)
             reload(translation)
             if sorted(translation.MESSAGES.keys()) !=\
                 sorted(english.MESSAGES.keys()) and \
                 lang not in warned:
                 # FIXME: get real logging in place
-                print "Warning: Incomplete translation for language '%s'." % lang
+                print("Warning: Incomplete translation for language '%s'." % lang)
                 warned.append(lang)
             messages[lang].update(english.MESSAGES)
             messages[lang].update(translation.MESSAGES)
             del(translation)
-        sys.path = oldpath
+    sys.path = oldpath
     return messages
 
 
@@ -210,7 +239,7 @@ def copy_tree(src, dst, link_cutoff=None):
             dst_file = os.path.join(dst_dir, src_name)
             src_file = os.path.join(root, src_name)
             yield {
-                'name': dst_file,
+                'name': str(dst_file),
                 'file_dep': [src_file],
                 'targets': [dst_file],
                 'actions': [(copy_file, (src_file, dst_file, link_cutoff))],
@@ -225,9 +254,9 @@ def generic_rss_renderer(lang, title, link, description,
     for post in timeline[:10]:
         args = {
             'title': post.title(lang),
-            'link': post.permalink(lang),
+            'link': post.permalink(lang, absolute=True),
             'description': post.text(lang, teaser_only=True),
-            'guid': post.permalink(lang),
+            'guid': post.permalink(lang, absolute=True),
             'pubDate': post.date,
         }
         items.append(rss.RSSItem(**args))
@@ -288,7 +317,9 @@ def slugify(value):
     From Django's "django/template/defaultfilters.py".
     """
     value = unidecode(value)
-    value = unicode(_slugify_strip_re.sub('', value).strip().lower())
+    # WARNING: this may not be python2/3 equivalent
+    #value = unicode(_slugify_strip_re.sub('', value).strip().lower())
+    value = str(_slugify_strip_re.sub('', value).strip().lower())
     return _slugify_hyphenate_re.sub('-', value)
 
 
@@ -312,7 +343,7 @@ class UnsafeZipException(Exception):
 def extract_all(zipfile):
     pwd = os.getcwd()
     os.chdir('themes')
-    z = zip(zipfile)
+    z = list(zip(zipfile))
     namelist = z.namelist()
     for f in namelist:
         if f.endswith('/') and '..' in f:
@@ -364,11 +395,11 @@ def apply_filters(task, filters):
     """
 
     def filter_matches(ext):
-        for key, value in filters.items():
+        for key, value in list(filters.items()):
             if isinstance(key, (tuple, list)):
                 if ext in key:
                     return value
-            elif isinstance(key, (str, unicode)):
+            elif isinstance(key, (str, bytes)):
                 if ext == key:
                     return value
             else:
@@ -381,7 +412,7 @@ def apply_filters(task, filters):
             for action in filter_:
                 def unlessLink(action, target):
                     if not os.path.islink(target):
-                        if callable(action):
+                        if isinstance(action, Callable):
                             action(target)
                         else:
                             subprocess.check_call(action % target, shell=True)

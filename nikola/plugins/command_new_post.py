@@ -1,3 +1,28 @@
+# Copyright (c) 2012 Roberto Alsina y otros.
+
+# Permission is hereby granted, free of charge, to any
+# person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the
+# Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice
+# shall be included in all copies or substantial portions of
+# the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+# OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+from __future__ import unicode_literals, print_function
 import codecs
 import datetime
 from optparse import OptionParser
@@ -47,12 +72,13 @@ class CommandNewPost(Command):
         else:
             path = self.site.config['post_pages'][0][0]
 
-        print "Creating New Post"
-        print "-----------------\n"
+        print("Creating New Post")
+        print("-----------------\n")
         if title is None:
-            title = raw_input("Enter title: ").decode(sys.stdin.encoding)
+            print("Enter title: ")
+            title = sys.stdin.readline().decode(sys.stdin.encoding).strip()
         else:
-            print "Title: ", title
+            print("Title: ", title)
         slug = utils.slugify(title)
         date = datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
         data = [
@@ -72,12 +98,12 @@ class CommandNewPost(Command):
 
         if (not onefile and os.path.isfile(meta_path)) or \
             os.path.isfile(txt_path):
-            print "The title already exists!"
+            print("The title already exists!")
             exit()
 
         if onefile:
             if post_format not in ('rest', 'markdown'):
-                print "ERROR: Unknown post format %s" % post_format
+                print("ERROR: Unknown post format %s" % post_format)
                 return
             with codecs.open(txt_path, "wb+", "utf8") as fd:
                 if post_format == 'markdown':
@@ -90,11 +116,11 @@ class CommandNewPost(Command):
                 fd.write('.. description: \n')
                 if post_format == 'markdown':
                     fd.write('-->\n')
-                fd.write(u"Write your post here.")
+                fd.write("\nWrite your post here.")
         else:
             with codecs.open(meta_path, "wb+", "utf8") as fd:
                 fd.write(data)
             with codecs.open(txt_path, "wb+", "utf8") as fd:
-                fd.write(u"Write your post here.")
-            print "Your post's metadata is at: ", meta_path
-        print "Your post's text is at: ", txt_path
+                fd.write("Write your post here.")
+            print("Your post's metadata is at: ", meta_path)
+        print("Your post's text is at: ", txt_path)

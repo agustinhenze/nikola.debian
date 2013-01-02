@@ -1,8 +1,36 @@
+# Copyright (c) 2012 Roberto Alsina y otros.
+
+# Permission is hereby granted, free of charge, to any
+# person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the
+# Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the
+# Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice
+# shall be included in all copies or substantial portions of
+# the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+# KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+# PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS
+# OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+from __future__ import print_function
 from optparse import OptionParser
 import os
 import sys
-import urllib
-from urlparse import urlparse
+try:
+    from urllib import unquote
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import unquote, urlparse
 
 import lxml.html
 
@@ -48,24 +76,24 @@ def analize(task):
                 target = target.split('#')[0]
             target_filename = os.path.abspath(
                 os.path.join(os.path.dirname(filename),
-                    urllib.unquote(target)))
+                    unquote(target)))
             if target_filename not in existing_targets:
                 if os.path.exists(target_filename):
                     existing_targets.add(target_filename)
                 else:
-                    print "In %s broken link: " % filename, target
+                    print("In %s broken link: " % filename, target)
                     if '--find-sources' in sys.argv:
-                        print "Possible sources:"
-                        print os.popen(
-                            'nikola build list --deps %s' % task, 'r').read()
-                        print "===============================\n"
+                        print("Possible sources:")
+                        print(os.popen(
+                            'nikola build list --deps %s' % task, 'r').read())
+                        print("===============================\n")
 
     except Exception as exc:
-        print "Error with:", filename, exc
+        print("Error with:", filename, exc)
 
 
 def scan_links():
-    print "Checking Links:\n===============\n"
+    print("Checking Links:\n===============\n")
     for task in os.popen('nikola build list --all', 'r').readlines():
         task = task.strip()
         if task.split(':')[0] in (
@@ -79,7 +107,7 @@ def scan_links():
 
 
 def scan_files():
-    print "Checking Files:\n===============\n"
+    print("Checking Files:\n===============\n")
     task_fnames = set([])
     real_fnames = set([])
     # First check that all targets are generated in the right places
@@ -97,13 +125,13 @@ def scan_files():
     only_on_output = list(real_fnames - task_fnames)
     if only_on_output:
         only_on_output.sort()
-        print "\nFiles from unknown origins:\n"
+        print("\nFiles from unknown origins:\n")
         for f in only_on_output:
-            print f
+            print(f)
 
     only_on_input = list(task_fnames - real_fnames)
     if only_on_input:
         only_on_input.sort()
-        print "\nFiles not generated:\n"
+        print("\nFiles not generated:\n")
         for f in only_on_input:
-            print f
+            print(f)

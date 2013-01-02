@@ -6,12 +6,27 @@
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
 
+from __future__ import print_function
 import os
 import subprocess
 import sys
 from fnmatch import fnmatchcase
-from distutils.util import convert_path
-from distutils.command.install import install
+
+
+try:
+    # Prefer setuptools for the installation to have no problem with the
+    # "--single-version-externally-managed" option that pip uses when
+    # installing packages.
+    from setuptools import setup
+    from setuptools import convert_path
+
+    from setuptools.command.install import install
+except ImportError:
+    print('\n*** setuptools not found! Falling back to distutils\n\n')
+    from distutils.core import setup
+
+    from distutils.command.install import install
+    from distutils.util import convert_path
 
 dependencies = [
     'doit>=0.18.1',
@@ -22,8 +37,12 @@ dependencies = [
     'unidecode',
     'lxml',
     'yapsy',
-    'configparser',
+    'mock>=1.0.0',
 ]
+
+if sys.version_info[0] == 2:
+    # in Python 3 this becomes a builtin, for Python 2 we need the backport
+    dependencies.append('configparser')
 
 # Provided as an attribute, so you can append to these instead
 # of replicating them:
@@ -32,12 +51,14 @@ standard_exclude_directories = ('.*', 'CVS', '_darcs', './build',
                                 './dist', 'EGG-INFO', '*.egg-info')
 
 
-def install_manpages(prefix):
+def install_manpages(root, prefix):
     man_pages = [
         ('docs/man/nikola.1', 'share/man/man1/nikola.1'),
     ]
     join = os.path.join
     normpath = os.path.normpath
+    if root is not None:
+        prefix = os.path.realpath(root) + os.path.sep + prefix
     for src, dst in man_pages:
         path_dst = join(normpath(prefix), normpath(dst))
         try:
@@ -57,7 +78,7 @@ def install_manpages(prefix):
 class nikola_install(install):
     def run(self):
         install.run(self)
-        install_manpages(self.prefix)
+        install_manpages(self.root, self.prefix)
 
 
 def find_package_data(
@@ -65,7 +86,7 @@ def find_package_data(
     exclude=standard_exclude,
     exclude_directories=standard_exclude_directories,
     only_in_packages=True,
-    show_ignored=False):
+        show_ignored=False):
     """
     Return a dictionary suitable for use in ``package_data``
     in a distutils ``setup.py`` file.
@@ -103,7 +124,7 @@ def find_package_data(
                 bad_name = False
                 for pattern in exclude_directories:
                     if (fnmatchcase(name, pattern)
-                        or fn.lower() == pattern.lower()):
+                            or fn.lower() == pattern.lower()):
                         bad_name = True
                         if show_ignored:
                             print >> sys.stderr, (
@@ -113,7 +134,7 @@ def find_package_data(
                 if bad_name:
                     continue
                 if (os.path.isfile(os.path.join(fn, '__init__.py'))
-                    and not prefix):
+                        and not prefix):
                     if not package:
                         new_package = name
                     else:
@@ -121,13 +142,13 @@ def find_package_data(
                     stack.append((fn, '', new_package, False))
                 else:
                     stack.append((fn, prefix + name + '/',
-                    package, only_in_packages))
+                                  package, only_in_packages))
             elif package or not only_in_packages:
                 # is a file
                 bad_name = False
                 for pattern in exclude:
                     if (fnmatchcase(name, pattern)
-                        or fn.lower() == pattern.lower()):
+                            or fn.lower() == pattern.lower()):
                         bad_name = True
                         if show_ignored:
                             print >> sys.stderr, (
@@ -142,20 +163,24 @@ def find_package_data(
 from distutils.core import setup
 
 setup(name='Nikola',
-      version='5',
+      version='5.1',
       description='Static blog/website generator',
       author='Roberto Alsina and others',
       author_email='ralsina@netmanagers.com.ar',
       url='http://nikola.ralsina.com.ar/',
-      packages=['nikola'],
+      packages=['nikola', 
+                'nikola.plugins',
+                'nikola.plugins.compile_markdown', 
+                'nikola.plugins.task_sitemap', 
+                'nikola.plugins.compile_rest'],
       scripts=['scripts/nikola'],
       install_requires=dependencies,
       package_data=find_package_data(),
       cmdclass={'install': nikola_install},
       data_files=[
               ('share/doc/nikola', [
-                      'docs/manual.txt',
-                      'docs/theming.txt',
-                      'docs/extending.txt']),
+               'docs/manual.txt',
+               'docs/theming.txt',
+               'docs/extending.txt']),
       ],
-     )
+      )
