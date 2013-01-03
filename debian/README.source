@@ -4,13 +4,13 @@ Repackaging upstream source
 nikola's original upstream source has been repackage to exclude DFSG-compliant
 components (minified JavaScript and Stylesheets) from it:
 
-$ diff -ruN nikola-5.upstream/ nikola-5 | diffstat
+$ diff -ruN nikola-5.1.upstream/ nikola-5.1 | diffstat
  css/bootstrap-responsive.min.css |    9 ---------
  css/bootstrap.min.css            |    9 ---------
  js/bootstrap.min.js              |    6 ------
  js/jquery-1.7.2.min.js           |    4 ----
  js/jquery.colorbox-min.js        |    4 ----
- 5 files changed, 32 deletions(-)
+ js/slides.min.jquery.js          |   20 --------------------
+ 6 files changed, 52 deletions(-)
 
-
- -- Agustin Henze <tin@sluc.org.ar>  Wed, 12 Dec 2012 20:42:41 -0300
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 02 Jan 2013 10:12:09 -0300

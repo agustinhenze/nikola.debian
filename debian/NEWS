@@ -1,3 +1,10 @@
+nikola (5.1-1) unstable; urgency=low
+
+  In this release, the license has changed. From now nikola is released under
+  MIT license.
+
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 02 Jan 2013 10:12:58 -0300
+
 nikola (5-1) unstable; urgency=low
 
   This version is not completely backwards compatible, thus the new major
