@@ -10,6 +10,7 @@ from __future__ import print_function
 import os
 import subprocess
 import sys
+import shutil
 from fnmatch import fnmatchcase
 
 
@@ -23,13 +24,13 @@ try:
     from setuptools.command.install import install
 except ImportError:
     print('\n*** setuptools not found! Falling back to distutils\n\n')
-    from distutils.core import setup
+    from distutils.core import setup  # NOQA
 
     from distutils.command.install import install
-    from distutils.util import convert_path
+    from distutils.util import convert_path  # NOQA
 
 dependencies = [
-    'doit>=0.18.1',
+    'doit>=0.20.0',
     'pygments',
     'pillow',
     'docutils',
@@ -38,6 +39,7 @@ dependencies = [
     'lxml',
     'yapsy',
     'mock>=1.0.0',
+    'PyRSS2Gen',
 ]
 
 if sys.version_info[0] == 2:
@@ -49,6 +51,22 @@ if sys.version_info[0] == 2:
 standard_exclude = ('*.pyc', '*$py.class', '*~', '.*', '*.bak')
 standard_exclude_directories = ('.*', 'CVS', '_darcs', './build',
                                 './dist', 'EGG-INFO', '*.egg-info')
+
+
+def copy_messages():
+    themes_directory = os.path.join(
+        os.path.dirname(__file__), 'nikola', 'data', 'themes')
+    original_messages_directory = os.path.join(
+        themes_directory, 'default', 'messages')
+
+    for theme in ('orphan', 'monospace'):
+        theme_messages_directory = os.path.join(
+            themes_directory, theme, 'messages')
+
+        if os.path.exists(theme_messages_directory):
+            shutil.rmtree(theme_messages_directory)
+
+        shutil.copytree(original_messages_directory, theme_messages_directory)
 
 
 def install_manpages(root, prefix):
@@ -160,18 +178,16 @@ def find_package_data(
                 out.setdefault(package, []).append(prefix + name)
     return out
 
-from distutils.core import setup
-
 setup(name='Nikola',
-      version='5.1',
+      version='5.2',
       description='Static blog/website generator',
       author='Roberto Alsina and others',
       author_email='ralsina@netmanagers.com.ar',
       url='http://nikola.ralsina.com.ar/',
-      packages=['nikola', 
+      packages=['nikola',
                 'nikola.plugins',
-                'nikola.plugins.compile_markdown', 
-                'nikola.plugins.task_sitemap', 
+                'nikola.plugins.compile_markdown',
+                'nikola.plugins.task_sitemap',
                 'nikola.plugins.compile_rest'],
       scripts=['scripts/nikola'],
       install_requires=dependencies,

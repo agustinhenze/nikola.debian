@@ -7,9 +7,10 @@ import unittest
 import mock
 
 
-class CommandImportWordpressTest(unittest.TestCase):
+class BasicCommandImportWordpress(unittest.TestCase):
     def setUp(self):
-        self.import_command = nikola.plugins.command_import_wordpress.CommandImportWordpress()
+        self.import_command = nikola.plugins.command_import_wordpress.CommandImportWordpress(
+        )
         self.import_filename = os.path.abspath(
             os.path.join(os.path.dirname(__file__),
                          'wordpress_export_example.xml'))
@@ -18,25 +19,83 @@ class CommandImportWordpressTest(unittest.TestCase):
         del self.import_command
         del self.import_filename
 
+
+class CommandImportWordpressRunTest(BasicCommandImportWordpress):
+    def setUp(self):
+        super(self.__class__, self).setUp()
+        self.data_import = mock.MagicMock()
+        self.site_generation = mock.MagicMock()
+        self.write_urlmap = mock.MagicMock()
+        self.write_configuration = mock.MagicMock()
+
+        site_generation_patch = mock.patch(
+            'nikola.plugins.command_import_wordpress.CommandImportWordpress.generate_base_site', self.site_generation)
+        data_import_patch = mock.patch(
+            'nikola.plugins.command_import_wordpress.CommandImportWordpress.import_posts', self.data_import)
+        write_urlmap_patch = mock.patch(
+            'nikola.plugins.command_import_wordpress.CommandImportWordpress.write_urlmap_csv', self.write_urlmap)
+        write_configuration_patch = mock.patch(
+            'nikola.plugins.command_import_wordpress.CommandImportWordpress.write_configuration', self.write_configuration)
+
+        self.patches = [site_generation_patch, data_import_patch,
+                        write_urlmap_patch, write_configuration_patch]
+        for patch in self.patches:
+            patch.start()
+
+    def tearDown(self):
+        del self.data_import
+        del self.site_generation
+        del self.write_urlmap
+        del self.write_configuration
+
+        for patch in self.patches:
+            patch.stop()
+        del self.patches
+
+        super(self.__class__, self).tearDown()
+
+    def test_create_import(self):
+        valid_import_arguments = (
+            ['--filename', self.import_filename],
+            ['-f', self.import_filename, '-o', 'some_folder'],
+            [self.import_filename],
+            [self.import_filename, 'folder_argument'],
+        )
+
+        for arguments in valid_import_arguments:
+            self.import_command.run(*arguments)
+
+            self.assertTrue(self.site_generation.called)
+            self.assertTrue(self.data_import.called)
+            self.assertTrue(self.write_urlmap.called)
+            self.assertTrue(self.write_configuration.called)
+            self.assertFalse(self.import_command.exclude_drafts)
+
+    def test_ignoring_drafts(self):
+        valid_import_arguments = (
+            ['--filename', self.import_filename, '--no-drafts'],
+            ['-f', self.import_filename, '-o', 'some_folder', '-d'],
+        )
+
+        for arguments in valid_import_arguments:
+            self.import_command.run(*arguments)
+            self.assertTrue(self.import_command.exclude_drafts)
+
+    def test_getting_help(self):
+        for arguments in (['-h'], ['--help']):
+            self.assertRaises(SystemExit, self.import_command.run, *arguments)
+
+            self.assertFalse(self.site_generation.called)
+            self.assertFalse(self.data_import.called)
+            self.assertFalse(self.write_urlmap.called)
+            self.assertFalse(self.write_configuration.called)
+
+
+class CommandImportWordpressTest(BasicCommandImportWordpress):
     def test_create_import_work_without_argument(self):
         # Running this without an argument must not fail.
         # It should show the proper usage of the command.
         self.import_command.run()
-
-    def test_create_import(self):
-        data_import = mock.MagicMock()
-        site_generation = mock.MagicMock()
-        write_urlmap = mock.MagicMock()
-        write_configuration = mock.MagicMock()
-
-        with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.generate_base_site', site_generation):
-            with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.import_posts', data_import):
-                with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.write_urlmap_csv', write_urlmap):
-                    with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.write_configuration', write_configuration):
-                        self.import_command.run(self.import_filename)
-
-        self.assertTrue(site_generation.called)
-        self.assertTrue(data_import.called)
 
     def test_populate_context(self):
         channel = self.import_command.get_channel_from_file(
@@ -48,7 +107,8 @@ class CommandImportWordpressTest(unittest.TestCase):
 
         self.assertEqual('de', context['DEFAULT_LANG'])
         self.assertEqual('Wordpress blog title', context['BLOG_TITLE'])
-        self.assertEqual('Nikola test blog ;) - with moré Ümläüts', context['BLOG_DESCRIPTION'])
+        self.assertEqual('Nikola test blog ;) - with moré Ümläüts',
+                         context['BLOG_DESCRIPTION'])
         self.assertEqual('http://some.blog', context['BLOG_URL'])
         self.assertEqual('mail@some.blog', context['BLOG_EMAIL'])
         self.assertEqual('Niko', context['BLOG_AUTHOR'])
@@ -59,6 +119,7 @@ class CommandImportWordpressTest(unittest.TestCase):
         self.import_command.context = self.import_command.populate_context(
             channel)
         self.import_command.url_map = {}  # For testing we use an empty one.
+        self.import_command.output_folder = 'new_site'
 
         write_metadata = mock.MagicMock()
         write_content = mock.MagicMock()
@@ -71,22 +132,137 @@ class CommandImportWordpressTest(unittest.TestCase):
                         self.import_command.import_posts(channel)
 
         self.assertTrue(download_mock.called)
-        download_mock.assert_any_call(u'http://some.blog/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png', u'new_site/files/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png')
+        download_mock.assert_any_call(
+            'http://some.blog/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png',
+            'new_site/files/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png')
 
         self.assertTrue(write_metadata.called)
-        write_metadata.assert_any_call(u'new_site/stories/kontakt.meta', 'Kontakt', u'kontakt', '2009-07-16 20:20:32', None, [])
+        write_metadata.assert_any_call(
+            'new_site/stories/kontakt.meta', 'Kontakt',
+            'kontakt', '2009-07-16 20:20:32', None, [])
 
         self.assertTrue(write_content.called)
-        write_content.assert_any_call(u'new_site/posts/200704hoert.wp', '...!\n\n\n\n[caption id="attachment_16" align="alignnone" width="739" caption="caption test"]<img class="size-full wp-image-16" title="caption test" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="caption test" width="739" height="517" />[/caption]\n\n\n\nNicht, dass daran jemals Zweifel bestanden.')
-        write_content.assert_any_call(u'new_site/posts/200807arzt-und-pfusch-s-i-c-k.wp', u'<img class="size-full wp-image-10 alignright" title="Arzt+Pfusch - S.I.C.K." src="http://some.blog/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png" alt="Arzt+Pfusch - S.I.C.K." width="210" height="209" />Arzt+Pfusch - S.I.C.K.Gerade bin ich \xfcber das Album <em>S.I.C.K</em> von <a title="Arzt+Pfusch" href="http://www.arztpfusch.com/" target="_blank">Arzt+Pfusch</a> gestolpert, welches Arzt+Pfusch zum Download f\xfcr lau anbieten. Das Album steht unter einer Creative Commons <a href="http://creativecommons.org/licenses/by-nc-nd/3.0/de/">BY-NC-ND</a>-Lizenz.\n\nDie Ladung <em>noisebmstupidevildustrial</em> gibts als MP3s mit <a href="http://www.archive.org/download/dmp005/dmp005_64kb_mp3.zip">64kbps</a> und <a href="http://www.archive.org/download/dmp005/dmp005_vbr_mp3.zip">VBR</a>, als Ogg Vorbis und als FLAC (letztere <a href="http://www.archive.org/details/dmp005">hier</a>). <a href="http://www.archive.org/download/dmp005/dmp005-artwork.zip">Artwork</a> und <a href="http://www.archive.org/download/dmp005/dmp005-lyrics.txt">Lyrics</a> gibts nochmal einzeln zum Download.')
-        write_content.assert_any_call(u'new_site/stories/kontakt.wp', u'<h1>Datenschutz</h1>\n\nIch erhebe und speichere automatisch in meine Server Log Files Informationen, die dein Browser an mich \xfcbermittelt. Dies sind:\n\n<ul>\n\n    <li>Browsertyp und -version</li>\n\n    <li>verwendetes Betriebssystem</li>\n\n    <li>Referrer URL (die zuvor besuchte Seite)</li>\n\n    <li>IP Adresse des zugreifenden Rechners</li>\n\n    <li>Uhrzeit der Serveranfrage.</li>\n\n</ul>\n\nDiese Daten sind f\xfcr mich nicht bestimmten Personen zuordenbar. Eine Zusammenf\xfchrung dieser Daten mit anderen Datenquellen wird nicht vorgenommen, die Daten werden einzig zu statistischen Zwecken erhoben.')
+        write_content.assert_any_call('new_site/posts/200704hoert.wp', 'An image.\n\n\n\n<img class="size-full wp-image-16" title="caption test" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="caption test" width="739" height="517" />\n\n\n\nSome source code.\n\n\n\n\n~~~~~~~~~~~~{.Python}\n\n\nimport sys\n\nprint sys.version\n\n\n~~~~~~~~~~~~\n\n\n\n\nThe end.\n\n')
+        write_content.assert_any_call(
+            'new_site/posts/200807arzt-und-pfusch-s-i-c-k.wp', '<img class="size-full wp-image-10 alignright" title="Arzt+Pfusch - S.I.C.K." src="http://some.blog/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png" alt="Arzt+Pfusch - S.I.C.K." width="210" height="209" />Arzt+Pfusch - S.I.C.K.Gerade bin ich \xfcber das Album <em>S.I.C.K</em> von <a title="Arzt+Pfusch" href="http://www.arztpfusch.com/" target="_blank">Arzt+Pfusch</a> gestolpert, welches Arzt+Pfusch zum Download f\xfcr lau anbieten. Das Album steht unter einer Creative Commons <a href="http://creativecommons.org/licenses/by-nc-nd/3.0/de/">BY-NC-ND</a>-Lizenz.\n\nDie Ladung <em>noisebmstupidevildustrial</em> gibts als MP3s mit <a href="http://www.archive.org/download/dmp005/dmp005_64kb_mp3.zip">64kbps</a> und <a href="http://www.archive.org/download/dmp005/dmp005_vbr_mp3.zip">VBR</a>, als Ogg Vorbis und als FLAC (letztere <a href="http://www.archive.org/details/dmp005">hier</a>). <a href="http://www.archive.org/download/dmp005/dmp005-artwork.zip">Artwork</a> und <a href="http://www.archive.org/download/dmp005/dmp005-lyrics.txt">Lyrics</a> gibts nochmal einzeln zum Download.')
+        write_content.assert_any_call(
+            'new_site/stories/kontakt.wp', '<h1>Datenschutz</h1>\n\nIch erhebe und speichere automatisch in meine Server Log Files Informationen, die dein Browser an mich \xfcbermittelt. Dies sind:\n\n<ul>\n\n    <li>Browsertyp und -version</li>\n\n    <li>verwendetes Betriebssystem</li>\n\n    <li>Referrer URL (die zuvor besuchte Seite)</li>\n\n    <li>IP Adresse des zugreifenden Rechners</li>\n\n    <li>Uhrzeit der Serveranfrage.</li>\n\n</ul>\n\nDiese Daten sind f\xfcr mich nicht bestimmten Personen zuordenbar. Eine Zusammenf\xfchrung dieser Daten mit anderen Datenquellen wird nicht vorgenommen, die Daten werden einzig zu statistischen Zwecken erhoben.')
 
         self.assertTrue(len(self.import_command.url_map) > 0)
 
-        self.assertEqual(self.import_command.url_map['http://some.blog/2007/04/hoert/'], u'http://some.blog/posts/200704hoert.html')
-        self.assertEqual(self.import_command.url_map['http://some.blog/2008/07/arzt-und-pfusch-s-i-c-k/'], u'http://some.blog/posts/200807arzt-und-pfusch-s-i-c-k.html')
-        self.assertEqual(self.import_command.url_map['http://some.blog/kontakt/'], u'http://some.blog/stories/kontakt.html')
+        self.assertEqual(
+            self.import_command.url_map['http://some.blog/2007/04/hoert/'],
+            'http://some.blog/posts/200704hoert.html')
+        self.assertEqual(
+            self.import_command.url_map[
+                'http://some.blog/2008/07/arzt-und-pfusch-s-i-c-k/'],
+            'http://some.blog/posts/200807arzt-und-pfusch-s-i-c-k.html')
+        self.assertEqual(
+            self.import_command.url_map['http://some.blog/kontakt/'],
+            'http://some.blog/stories/kontakt.html')
 
+    def test_transforming_content(self):
+        """Applying markup conversions to content."""
+        transform_sourcecode = mock.MagicMock()
+        transform_caption = mock.MagicMock()
+
+        with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.transform_sourcecode', transform_sourcecode):
+            with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.transform_caption', transform_caption):
+                self.import_command.transform_content("random content")
+
+        self.assertTrue(transform_sourcecode.called)
+        self.assertTrue(transform_caption.called)
+
+    def test_transforming_source_code(self):
+        """
+        Tests the handling of sourcecode tags.
+        """
+        content = """Hello World.
+[sourcecode language="Python"]
+import sys
+print sys.version
+[/sourcecode]"""
+
+        content = self.import_command.transform_sourcecode(content)
+
+        self.assertFalse('[/sourcecode]' in content)
+        self.assertFalse('[sourcecode language=' in content)
+
+        replaced_content = """Hello World.
+
+~~~~~~~~~~~~{.Python}
+
+import sys
+print sys.version
+
+~~~~~~~~~~~~
+"""
+
+        self.assertEqual(content, replaced_content)
+
+    def test_transform_caption(self):
+        caption = '[caption id="attachment_16" align="alignnone" width="739" caption="beautiful picture"]<img class="size-full wp-image-16" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="beautiful picture" width="739" height="517" />[/caption]'
+        transformed_content = self.import_command.transform_caption(caption)
+
+        expected_content = '<img class="size-full wp-image-16" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="beautiful picture" width="739" height="517" />'
+
+        self.assertEqual(transformed_content, expected_content)
+
+    def test_transform_multiple_captions_in_a_post(self):
+        content = """asdasdas
+[caption id="attachment_16" align="alignnone" width="739" caption="beautiful picture"]<img class="size-full wp-image-16" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="beautiful picture" width="739" height="517" />[/caption]
+asdasdas
+asdasdas
+[caption id="attachment_16" align="alignnone" width="739" caption="beautiful picture"]<img class="size-full wp-image-16" title="pretty" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="beautiful picture" width="739" height="517" />[/caption]
+asdasdas"""
+
+        expected_content = """asdasdas
+<img class="size-full wp-image-16" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="beautiful picture" width="739" height="517" />
+asdasdas
+asdasdas
+<img class="size-full wp-image-16" title="pretty" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="beautiful picture" width="739" height="517" />
+asdasdas"""
+
+        self.assertEqual(
+            expected_content, self.import_command.transform_caption(content))
+
+    def test_transform_caption_with_link_inside(self):
+        content = """[caption caption="Fehlermeldung"]<a href="http://some.blog/openttd-missing_sound.png"><img class="size-thumbnail wp-image-551" title="openttd-missing_sound" src="http://some.blog/openttd-missing_sound-150x150.png" alt="Fehlermeldung" /></a>[/caption]"""
+        transformed_content = self.import_command.transform_caption(content)
+
+        expected_content = """<a href="http://some.blog/openttd-missing_sound.png"><img class="size-thumbnail wp-image-551" title="openttd-missing_sound" src="http://some.blog/openttd-missing_sound-150x150.png" alt="Fehlermeldung" /></a>"""
+        self.assertEqual(expected_content, transformed_content)
+
+    def test_get_configuration_output_path(self):
+        self.import_command.output_folder = 'new_site'
+        default_config_path = os.path.join('new_site', 'conf.py')
+
+        self.import_command.import_into_existing_site = False
+        self.assertEqual(default_config_path,
+                         self.import_command.get_configuration_output_path())
+
+        self.import_command.import_into_existing_site = True
+        config_path_with_timestamp = self.import_command.get_configuration_output_path(
+        )
+        self.assertNotEqual(default_config_path, config_path_with_timestamp)
+        self.assertTrue('wordpress_import' in config_path_with_timestamp)
+
+    def test_write_content_does_not_detroy_text(self):
+        content = b"""<h1>Installation</h1>
+Follow the instructions <a title="Installing Jenkins" href="https://wiki.jenkins-ci.org/display/JENKINS/Installing+Jenkins">described here</a>.
+
+<h1>Plugins</h1>
+There are many plugins.
+<h2>Violations</h2>
+You can use the <a title="Jenkins Plugin: Violations" href="https://wiki.jenkins-ci.org/display/JENKINS/Violations">Violations</a> plugin."""
+        open_mock = mock.mock_open()
+        with mock.patch('nikola.plugins.command_import_wordpress.open', open_mock, create=True):
+            self.import_command.write_content('some_file', content)
+
+        open_mock.assert_called_once_with('some_file', 'wb+')
+        call_context = open_mock()
+        call_context.write.assert_called_once_with(
+            content.join([b'<html><body>', b'</body></html>']))
 
 if __name__ == '__main__':
     unittest.main()
