@@ -1,10 +1,21 @@
-nikola (5.1-1) unstable; urgency=low
+nikola (5.2-1) unstable; urgency=low
 
-  * New upstream release (Closes: #696358).
-    - Update standard version from 3.9.3 to 3.9.4.
-    - Add libjs-jquery-slides dependency.
+  * Imported Upstream version 5.2 (Closes: #696358, #699910).
+  * Bump Standards-Version to 3.9.4 (no changes required).
+  * Added libjs-jquery-slides dependency.
+    - Removed slides.jquery.js file of the upstream installation.
+  * Updated copyright file: 
+    - The license of nikola has changed from GPL-3 to MIT.
+    - Added license of slides.jquery.js file.
+  * Fixed assets symlinks on debian/nikola.links.
+  * Updated debian/rules:
+    - Deleted the remove sentence of PyRSS2Gen, fixed in upstream.
+    - Copy custom.css into the right place, it'll be reported to upstream.
+    - Added conversion from rst to html of the docs/creating-a-theme.txt file.
+  * Created debian/pydist-overrides: pillow overridden by python-imaging.
+  * Added Vcs-git and Vcs-browser to debian/control file.
 
- -- Agustin Henze <tin@sluc.org.ar>  Wed, 02 Jan 2013 10:10:11 -0300
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 13 Feb 2013 18:42:55 -0300
 
 nikola (5-1) unstable; urgency=low
 

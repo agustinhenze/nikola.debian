@@ -4,7 +4,7 @@ Repackaging upstream source
 nikola's original upstream source has been repackage to exclude DFSG-compliant
 components (minified JavaScript and Stylesheets) from it:
 
-$ diff -ruN nikola-5.1.upstream/ nikola-5.1 | diffstat
+$ diff -ruN nikola-5.2.upstream/ nikola-5.2 | diffstat
  css/bootstrap-responsive.min.css |    9 ---------
  css/bootstrap.min.css            |    9 ---------
  js/bootstrap.min.js              |    6 ------

@@ -17,10 +17,16 @@ usr/share/pyshared/nikola/data/themes/default/assets/js/bootstrap.js
 usr/share/pyshared/nikola/data/themes/default/assets/js/bootstrap.min.js
 
 /usr/share/pyshared/nikola/data/themes/default/assets/js/bootstrap.min.js
-usr/share/pyshared/nikola/data/themes/default/assets/js/bootstrap.min.js
+usr/lib/python2.7/dist-packages/nikola/data/themes/default/assets/js/bootstrap.min.js
 
 /usr/share/javascript/jquery-slides/slides.min.jquery.js
 usr/share/pyshared/nikola/data/themes/default/assets/js/slides.min.jquery.js
+
+/usr/share/pyshared/nikola/data/themes/default/assets/js/slides.min.jquery.js
+usr/lib/python2.7/dist-packages/nikola/data/themes/default/assets/js/slides.min.jquery.js
+
+/usr/share/javascript/jquery-slides/slides.jquery.js
+usr/share/pyshared/nikola/data/themes/default/assets/js/slides.jquery.js
 
 /usr/share/twitter-bootstrap/files/css/bootstrap-responsive.css
 usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap-responsive.css

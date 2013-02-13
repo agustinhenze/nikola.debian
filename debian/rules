@@ -27,17 +27,10 @@ override_dh_auto_install:
 	mkdir -p debian/nikola/usr/share/doc/nikola; \
 		rst2html docs/manual.txt debian/nikola/usr/share/doc/nikola/manual.html; \
 		rst2html docs/theming.txt debian/nikola/usr/share/doc/nikola/theming.html; \
+		rst2html docs/creating-a-theme.txt debian/nikola/usr/share/doc/nikola/creating-a-theme.html; \
 		rst2html docs/extending.txt debian/nikola/usr/share/doc/nikola/extending.html;
 	# Manpage
 	rst2man docs/man/nikola.1 debian/nikola.1
-	# Remove embedded code from other software pieces
-	# PyRSS2Gen, provided by python-pyrss2gen on runtime-dep
-	rm debian/nikola/usr/lib/python2.7/dist-packages/nikola/PyRSS2Gen.py
-
-override_dh_python2:
-	dh_python2
-	chmod -x debian/nikola/usr/share/pyshared/nikola/data/samplesite/stories/configsample.txt
-	chmod -x debian/nikola/usr/share/pyshared/nikola/conf.py.in
 
 override_dh_link:
 	# Remove embedded code from other software pieces
@@ -46,4 +39,6 @@ override_dh_link:
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/js/slides.jquery.js
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap-responsive.css
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap.css
+	# A nasty fix, I'll report this to upstream.
+	cp nikola/data/samplesite/files/assets/css/custom.css debian/nikola/usr/lib/python2.7/dist-packages/nikola/data/themes/default/assets/css/custom.css
 	dh_link
