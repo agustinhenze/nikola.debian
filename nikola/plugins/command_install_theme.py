@@ -26,12 +26,12 @@ from __future__ import print_function
 from optparse import OptionParser
 import os
 import json
-from io import StringIO
+from io import BytesIO
 
 try:
     import requests
 except ImportError:
-    requests = None
+    requests = None  # NOQA
 
 from nikola.plugin_categories import Command
 from nikola import utils
@@ -45,18 +45,19 @@ class CommandInstallTheme(Command):
     def run(self, *args):
         """Install theme into current site."""
         if requests is None:
-            print('To use the install_theme command, you need to install the "requests" package.')
+            print('To use the install_theme command, you need to install the '
+                  '"requests" package.')
             return
         parser = OptionParser(usage="nikola %s [options]" % self.name)
-        parser.add_option("-l", "--list", dest="list",
-            action="store_true",
-            help="Show list of available themes.")
-        parser.add_option("-n", "--name", dest="name",
-            help="Theme name", default=None)
-        parser.add_option("-u", "--url", dest="url",
-            help="URL for the theme repository"
-            "(default: http://nikola.ralsina.com.ar/themes/index.json)",
-            default='http://nikola.ralsina.com.ar/themes/index.json')
+        parser.add_option("-l", "--list", dest="list", action="store_true",
+                          help="Show list of available themes.")
+        parser.add_option("-n", "--name", dest="name", help="Theme name",
+                          default=None)
+        parser.add_option("-u", "--url", dest="url", help="URL for the theme "
+                          "repository" "(default: "
+                          "http://nikola.ralsina.com.ar/themes/index.json)",
+                          default='http://nikola.ralsina.com.ar/themes/'
+                                  'index.json')
         (options, args) = parser.parse_args(list(args))
 
         listing = options.list
@@ -84,7 +85,7 @@ class CommandInstallTheme(Command):
                     except:
                         raise OSError("mkdir 'theme' error!")
                 print('Downloading: %s' % data[name])
-                zip_file = StringIO()
+                zip_file = BytesIO()
                 zip_file.write(requests.get(data[name]).content)
                 print('Extracting: %s into themes' % name)
                 utils.extract_all(zip_file)

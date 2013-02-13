@@ -1,4 +1,4 @@
-doit>=0.17
+doit>=0.20.0
 pygments
 pillow
 docutils
@@ -11,3 +11,5 @@ mock>=1.0.0
 requests
 markdown
 Jinja2
+PyRSS2Gen
+bbcode

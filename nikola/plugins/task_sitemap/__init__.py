@@ -8,11 +8,11 @@
 # distribute, sublicense, and/or sell copies of the
 # Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice
 # shall be included in all copies or substantial portions of
 # the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
 # KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
 # WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
@@ -22,13 +22,15 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+from __future__ import print_function, absolute_import
 import os
+import sys
 import tempfile
 
 from nikola.plugin_categories import LateTask
 from nikola.utils import config_changed
 
-import sitemap_gen
+from nikola.plugins.task_sitemap import sitemap_gen
 
 
 class Sitemap(LateTask):
@@ -37,6 +39,14 @@ class Sitemap(LateTask):
     name = "sitemap"
 
     def gen_tasks(self):
+        if sys.version_info[0] == 3:
+            print("sitemap generation is not available for python 3")
+            yield {
+                'basename': 'sitemap',
+                'name': 'sitemap',
+                'actions': [],
+            }
+            return
         """Generate Google sitemap."""
         kw = {
             "blog_url": self.site.config["BLOG_URL"],
@@ -62,19 +72,20 @@ class Sitemap(LateTask):
                 kw["blog_url"],
             )
             config_file = tempfile.NamedTemporaryFile(delete=False)
-            config_file.write(config_data)
+            config_file.write(config_data.encode('utf8'))
             config_file.close()
 
             # Generate sitemap
             sitemap = sitemap_gen.CreateSitemapFromFile(config_file.name, True)
             if not sitemap:
-                sitemap_gen.output.Log('Configuration file errors -- exiting.', 0)
+                sitemap_gen.output.Log('Configuration file errors -- exiting.',
+                                       0)
             else:
                 sitemap.Generate()
                 sitemap_gen.output.Log('Number of errors: %d' %
-                    sitemap_gen.output.num_errors, 1)
+                                       sitemap_gen.output.num_errors, 1)
                 sitemap_gen.output.Log('Number of warnings: %d' %
-                    sitemap_gen.output.num_warns, 1)
+                                       sitemap_gen.output.num_warns, 1)
             os.unlink(config_file.name)
 
         yield {

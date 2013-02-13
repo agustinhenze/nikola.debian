@@ -42,15 +42,25 @@ try:
 except ImportError:
     pass
 
+
+if sys.version_info[0] == 3:
+    # Python 3
+    bytes_str = bytes
+    unicode_str = str
+    unichr = chr
+else:
+    bytes_str = str
+    unicode_str = unicode
+
 from doit import tools
 from unidecode import unidecode
 
-from . import PyRSS2Gen as rss
+import PyRSS2Gen as rss
 
 __all__ = ['get_theme_path', 'get_theme_chain', 'load_messages', 'copy_tree',
-    'generic_rss_renderer',
-    'copy_file', 'slugify', 'unslugify', 'get_meta', 'to_datetime',
-    'apply_filters', 'config_changed']
+           'generic_rss_renderer',
+           'copy_file', 'slugify', 'unslugify', 'get_meta', 'to_datetime',
+           'apply_filters', 'config_changed']
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -94,7 +104,7 @@ def get_theme_path(theme):
     if os.path.isdir(dir_name):
         return dir_name
     dir_name = os.path.join(os.path.dirname(__file__),
-        'data', 'themes', theme)
+                            'data', 'themes', theme)
     if os.path.isdir(dir_name):
         return dir_name
     raise Exception("Can't find theme '%s'" % theme)
@@ -110,22 +120,54 @@ def re_meta(line, match):
         return ''
 
 
-def get_meta(source_path):
-    """get post's meta from source"""
+def _get_metadata_from_filename_by_regex(filename, metadata_regexp):
+    """
+    Tries to ried the metadata from the filename based on the given re.
+    This requires to use symbolic group names in the pattern.
+
+    The part to read the metadata from the filename based on a regular
+    expression is taken from Pelican - pelican/readers.py
+    """
+    title = slug = date = tags = link = description = ''
+    match = re.match(metadata_regexp, filename)
+    if match:
+        # .items() for py3k compat.
+        for key, value in match.groupdict().items():
+            key = key.lower()  # metadata must be lowercase
+
+            if key == 'title':
+                title = value
+            if key == 'slug':
+                slug = value
+            if key == 'date':
+                date = value
+            if key == 'tags':
+                tags = value
+            if key == 'link':
+                link = value
+            if key == 'description':
+                description = value
+
+    return (title, slug, date, tags, link, description)
+
+
+def _get_metadata_from_file(source_path, title='', slug='', date='', tags='',
+                            link='', description=''):
+    re_md_title = re.compile(r'^%s([^%s].*)' %
+                            (re.escape('#'), re.escape('#')))
+    # Assuming rst titles are going to be at least 4 chars long
+    # otherwise this detects things like ''' wich breaks other markups.
+    re_rst_title = re.compile(r'^([%s]{4,})' % re.escape(string.punctuation))
+
     with codecs.open(source_path, "r", "utf8") as meta_file:
         meta_data = meta_file.readlines(15)
-    title = slug = date = tags = link = description = ''
 
-    re_md_title = re.compile(r'^%s([^%s].*)' %
-        (re.escape('#'), re.escape('#')))
-    re_rst_title = re.compile(r'^([^%s ].*)' % re.escape(string.punctuation))
-
-    for meta in meta_data:
+    for i, meta in enumerate(meta_data):
         if not title:
             title = re_meta(meta, '.. title:')
         if not title:
-            if re_rst_title.findall(meta):
-                title = re_rst_title.findall(meta)[0]
+            if re_rst_title.findall(meta) and i > 0:
+                title = meta_data[i - 1].strip()
         if not title:
             if re_md_title.findall(meta):
                 title = re_md_title.findall(meta)[0]
@@ -140,11 +182,34 @@ def get_meta(source_path):
         if not description:
             description = re_meta(meta, '.. description:')
 
-    # TODO: either enable or delete
-    #if not date:
-        #from datetime import datetime
-        #date = datetime.fromtimestamp(
-        #    os.path.getmtime(source_path)).strftime('%Y/%m/%d %H:%M')
+    return (title, slug, date, tags, link, description)
+
+
+def get_meta(source_path, file_metadata_regexp=None):
+    """Get post's meta from source.
+
+    If ``file_metadata_regexp`` ist given it will be tried to read
+    metadata from the filename.
+    If any metadata is then found inside the file the metadata from the
+    file will override previous findings.
+    """
+    title = slug = date = tags = link = description = ''
+
+    if not (file_metadata_regexp is None):
+        (title, slug, date, tags, link,
+         description) = _get_metadata_from_filename_by_regex(
+             source_path, file_metadata_regexp)
+
+    (title, slug, date, tags, link, description) = _get_metadata_from_file(
+        source_path, title, slug, date, tags, link, description)
+
+    if not slug:
+        # If no slug is found in the metadata use the filename
+        slug = slugify(os.path.splitext(os.path.basename(source_path))[0])
+
+    if not title:
+        # If no title is found, use the filename without extension
+        title = os.path.splitext(os.path.basename(source_path))[0]
 
     return (title, slug, date, tags, link, description)
 
@@ -194,13 +259,14 @@ def load_messages(themes, translations):
         english = __import__('messages_en')
         for lang in list(translations.keys()):
             # If we don't do the reload, the module is cached
-            translation = __import__('messages_'+lang)
+            translation = __import__('messages_' + lang)
             reload(translation)
             if sorted(translation.MESSAGES.keys()) !=\
                 sorted(english.MESSAGES.keys()) and \
-                lang not in warned:
+                    lang not in warned:
                 # FIXME: get real logging in place
-                print("Warning: Incomplete translation for language '%s'." % lang)
+                print("Warning: Incomplete translation for language '%s'." %
+                      lang)
                 warned.append(lang)
             messages[lang].update(english.MESSAGES)
             messages[lang].update(translation.MESSAGES)
@@ -247,15 +313,15 @@ def copy_tree(src, dst, link_cutoff=None):
             }
 
 
-def generic_rss_renderer(lang, title, link, description,
-    timeline, output_path):
+def generic_rss_renderer(lang, title, link, description, timeline, output_path,
+                         rss_teasers):
     """Takes all necessary data, and renders a RSS feed in output_path."""
     items = []
     for post in timeline[:10]:
         args = {
             'title': post.title(lang),
             'link': post.permalink(lang, absolute=True),
-            'description': post.text(lang, teaser_only=True),
+            'description': post.text(lang, teaser_only=rss_teasers),
             'guid': post.permalink(lang, absolute=True),
             'pubDate': post.date,
         }
@@ -271,8 +337,11 @@ def generic_rss_renderer(lang, title, link, description,
     dst_dir = os.path.dirname(output_path)
     if not os.path.isdir(dst_dir):
         os.makedirs(dst_dir)
-    with open(output_path, "wb+") as rss_file:
-        rss_obj.write_xml(rss_file)
+    with codecs.open(output_path, "wb+", "utf-8") as rss_file:
+        data = rss_obj.to_xml(encoding='utf-8')
+        if isinstance(data, bytes_str):
+            data = data.decode('utf-8')
+        rss_file.write(data)
 
 
 def copy_file(source, dest, cutoff=None):
@@ -318,7 +387,7 @@ def slugify(value):
     """
     value = unidecode(value)
     # WARNING: this may not be python2/3 equivalent
-    #value = unicode(_slugify_strip_re.sub('', value).strip().lower())
+    # value = unicode(_slugify_strip_re.sub('', value).strip().lower())
     value = str(_slugify_strip_re.sub('', value).strip().lower())
     return _slugify_hyphenate_re.sub('-', value)
 
@@ -343,21 +412,21 @@ class UnsafeZipException(Exception):
 def extract_all(zipfile):
     pwd = os.getcwd()
     os.chdir('themes')
-    z = list(zip(zipfile))
-    namelist = z.namelist()
-    for f in namelist:
-        if f.endswith('/') and '..' in f:
-            raise UnsafeZipException(
-                'The zip file contains ".." and is not safe to expand.')
-    for f in namelist:
-        if f.endswith('/'):
-            if not os.path.isdir(f):
-                try:
-                    os.makedirs(f)
-                except:
-                    raise OSError("mkdir '%s' error!" % f)
-        else:
-            z.extract(f)
+    with zip(zipfile) as z:
+        namelist = z.namelist()
+        for f in namelist:
+            if f.endswith('/') and '..' in f:
+                raise UnsafeZipException(
+                    'The zip file contains ".." and is not safe to expand.')
+        for f in namelist:
+            if f.endswith('/'):
+                if not os.path.isdir(f):
+                    try:
+                        os.makedirs(f)
+                    except:
+                        raise OSError("mkdir '%s' error!" % f)
+            else:
+                z.extract(f)
     os.chdir(pwd)
 
 

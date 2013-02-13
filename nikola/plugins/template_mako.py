@@ -8,11 +8,11 @@
 # distribute, sublicense, and/or sell copies of the
 # Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice
 # shall be included in all copies or substantial portions of
 # the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
 # KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
 # WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
@@ -48,7 +48,8 @@ class MakoTemplates(TemplateSystem):
 
         deps = []
         for n in lex.template.nodes:
-            if getattr(n, 'keyword', None) == "inherit":
+            keyword = getattr(n, 'keyword', None)
+            if keyword in ["inherit", "namespace"]:
                 deps.append(n.attributes['file'])
             # TODO: include tags are not handled
         return deps
@@ -61,8 +62,7 @@ class MakoTemplates(TemplateSystem):
         self.lookup = TemplateLookup(
             directories=directories,
             module_directory=cache_dir,
-            output_encoding='utf-8',
-            )
+            output_encoding='utf-8')
 
     def render_template(self, template_name, output_name, context):
         """Render the template into output_name using context."""

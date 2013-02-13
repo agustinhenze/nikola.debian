@@ -1,4 +1,4 @@
-doit>=0.17
+doit>=0.20.0
 pygments
 https://github.com/fluggo/Pillow/archive/master.zip
 docutils
@@ -10,3 +10,5 @@ mock>=1.0.0
 requests
 markdown
 Jinja2
+PyRSS2Gen
+bbcode

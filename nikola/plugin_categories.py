@@ -8,11 +8,11 @@
 # distribute, sublicense, and/or sell copies of the
 # Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice
 # shall be included in all copies or substantial portions of
 # the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
 # KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
 # WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
@@ -106,4 +106,9 @@ class PageCompiler(object):
 
     def compile_html(self, source, dest):
         """Compile the source, save it on dest."""
+        raise Exception("Implement Me First")
+
+    def create_post(self, path, onefile=False, title="", slug="", date="",
+                    tags=""):
+        """Create post file with optional metadata."""
         raise Exception("Implement Me First")
