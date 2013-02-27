@@ -1,3 +1,11 @@
+nikola (5.3-1) unstable; urgency=low
+
+  * Imported Upstream version 5.3
+  * Updated debian/rules:
+    - Removed the copy of the custom.css file, fixed in upstream.
+
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 27 Feb 2013 17:11:04 -0300
+
 nikola (5.2-1) unstable; urgency=low
 
   * Imported Upstream version 5.2 (Closes: #696358, #699910).
