@@ -39,6 +39,4 @@ override_dh_link:
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/js/slides.jquery.js
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap-responsive.css
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap.css
-	# A nasty fix, I'll report this to upstream.
-	cp nikola/data/samplesite/files/assets/css/custom.css debian/nikola/usr/lib/python2.7/dist-packages/nikola/data/themes/default/assets/css/custom.css
 	dh_link
