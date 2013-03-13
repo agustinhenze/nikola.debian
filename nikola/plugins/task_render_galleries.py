@@ -136,7 +136,6 @@ class Galleries(Task):
             # Sort by date
             image_list.sort(key=lambda a: self.image_date(a))
             image_name_list = [os.path.basename(x) for x in image_list]
-
             thumbs = []
             # Do thumbnails and copy originals
             for img, img_name in list(zip(image_list, image_name_list)):
@@ -187,7 +186,7 @@ class Galleries(Task):
                         output_gallery, ".thumbnail".join([fname, ext]))
                     excluded_dest_path = os.path.join(output_gallery, img_name)
                     yield {
-                        'basename': str('render_galleries'),
+                        'basename': str('render_galleries_clean'),
                         'name': excluded_thumb_dest_path.encode('utf8'),
                         'file_dep': [exclude_path],
                         #'targets': [excluded_thumb_dest_path],
@@ -198,7 +197,7 @@ class Galleries(Task):
                         'uptodate': [utils.config_changed(kw)],
                     }
                     yield {
-                        'basename': str('render_galleries'),
+                        'basename': str('render_galleries_clean'),
                         'name': excluded_dest_path.encode('utf8'),
                         'file_dep': [exclude_path],
                         #'targets': [excluded_dest_path],
@@ -214,9 +213,9 @@ class Galleries(Task):
             context["title"] = os.path.basename(gallery_path)
             context["description"] = kw["blog_description"]
             if kw['use_filename_as_title']:
-                img_titles = ['id="%s" alt="%s" title="%s"' %
-                              (fn[:-4], fn[:-4], utils.unslugify(fn[:-4]))
-                              for fn in image_name_list]
+                img_titles = ['id="{0}" alt="{1}" title="{2}"'.format(
+                    fn[:-4], fn[:-4], utils.unslugify(fn[:-4])) for fn
+                    in image_name_list]
             else:
                 img_titles = [''] * len(image_name_list)
             context["images"] = list(zip(image_name_list, thumbs, img_titles))

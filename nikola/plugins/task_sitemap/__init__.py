@@ -49,7 +49,8 @@ class Sitemap(LateTask):
             return
         """Generate Google sitemap."""
         kw = {
-            "blog_url": self.site.config["BLOG_URL"],
+            "base_url": self.site.config["BASE_URL"],
+            "site_url": self.site.config["SITE_URL"],
             "output_folder": self.site.config["OUTPUT_FOLDER"],
         }
         output_path = os.path.abspath(kw['output_folder'])
@@ -59,18 +60,14 @@ class Sitemap(LateTask):
             # Generate config
             config_data = """<?xml version="1.0" encoding="UTF-8"?>
     <site
-    base_url="%s"
-    store_into="%s"
+    base_url="{0}"
+    store_into="{1}"
     verbose="1" >
-    <directory path="%s" url="%s" />
+    <directory path="{2}" url="{3}" />
     <filter action="drop" type="wildcard" pattern="*~" />
     <filter action="drop" type="regexp" pattern="/\.[^/]*" />
-    </site>""" % (
-                kw["blog_url"],
-                sitemap_path,
-                output_path,
-                kw["blog_url"],
-            )
+    </site>""".format(kw["site_url"], sitemap_path, output_path,
+                      kw["base_url"])
             config_file = tempfile.NamedTemporaryFile(delete=False)
             config_file.write(config_data.encode('utf8'))
             config_file.close()
@@ -82,14 +79,15 @@ class Sitemap(LateTask):
                                        0)
             else:
                 sitemap.Generate()
-                sitemap_gen.output.Log('Number of errors: %d' %
-                                       sitemap_gen.output.num_errors, 1)
-                sitemap_gen.output.Log('Number of warnings: %d' %
-                                       sitemap_gen.output.num_warns, 1)
+                sitemap_gen.output.Log('Number of errors: {0}'.format(
+                                       sitemap_gen.output.num_errors), 1)
+                sitemap_gen.output.Log('Number of warnings: {0}'.format(
+                                       sitemap_gen.output.num_warns), 1)
             os.unlink(config_file.name)
 
         yield {
             "basename": "sitemap",
+            "name": os.path.join(kw['output_folder'], "sitemap.xml.gz"),
             "targets": [sitemap_path],
             "actions": [(sitemap,)],
             "uptodate": [config_changed(kw)],

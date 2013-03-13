@@ -22,7 +22,7 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#from __future__ import unicode_literals
+from __future__ import unicode_literals
 import codecs
 import json
 import os
@@ -42,7 +42,7 @@ class RenderTags(Task):
         kw = {
             "translations": self.site.config["TRANSLATIONS"],
             "blog_title": self.site.config["BLOG_TITLE"],
-            "blog_url": self.site.config["BLOG_URL"],
+            "site_url": self.site.config["SITE_URL"],
             "blog_description": self.site.config["BLOG_DESCRIPTION"],
             "messages": self.site.MESSAGES,
             "output_folder": self.site.config['OUTPUT_FOLDER'],
@@ -55,6 +55,8 @@ class RenderTags(Task):
         }
 
         self.site.scan_posts()
+
+        yield self.list_tags_page(kw)
 
         if not self.site.posts_per_tag:
             yield {'basename': str(self.name), 'actions': []}
@@ -72,8 +74,6 @@ class RenderTags(Task):
                     yield self.tag_page_as_index(tag, lang, post_list, kw)
                 else:
                     yield self.tag_page_as_list(tag, lang, post_list, kw)
-
-        yield self.list_tags_page(kw)
 
         # Tag cloud json file
         tag_cloud_data = {}
@@ -136,7 +136,7 @@ class RenderTags(Task):
             """Given tag, n, returns a page name."""
             name = self.site.path("tag", tag, lang)
             if i:
-                name = name.replace('.html', '-%s.html' % i)
+                name = name.replace('.html', '-{0}.html'.format(i))
             return name
 
         # FIXME: deduplicate this with render_indexes
@@ -152,11 +152,11 @@ class RenderTags(Task):
             # On a tag page, the feeds include the tag's feeds
             rss_link = ("""<link rel="alternate" type="application/rss+xml" """
                         """type="application/rss+xml" title="RSS for tag """
-                        """%s (%s)" href="%s">""" %
-                        (tag, lang, self.site.link("tag_rss", tag, lang)))
+                        """{0} ({1})" href="{2}">""".format(
+                            tag, lang, self.site.link("tag_rss", tag, lang)))
             context['rss_link'] = rss_link
-            output_name = os.path.join(kw['output_folder'], page_name(tag, i,
-                                                                      lang))
+            output_name = os.path.join(kw['output_folder'],
+                                       page_name(tag, i, lang))
             output_name = output_name.encode('utf8')
             context["title"] = kw["messages"][lang][
                 "Posts about %s"] % tag
@@ -231,8 +231,8 @@ class RenderTags(Task):
             'file_dep': deps,
             'targets': [output_name],
             'actions': [(utils.generic_rss_renderer,
-                        (lang, "%s (%s)" % (kw["blog_title"], tag),
-                         kw["blog_url"], kw["blog_description"], post_list,
+                        (lang, "{0} ({1})".format(kw["blog_title"], tag),
+                         kw["site_url"], kw["blog_description"], post_list,
                          output_name, kw["rss_teasers"]))],
             'clean': True,
             'uptodate': [utils.config_changed(kw)],
