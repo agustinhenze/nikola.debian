@@ -80,9 +80,10 @@ def tidy(inplace):
 
     # Tidy will give error exits, that we will ignore.
     output = subprocess.check_output("tidy -m -w 90 --indent no --quote-marks"
-                                     "no --keep-time yes --tidy-mark no '%s';"
-                                     "exit 0" % inplace,
-                                     stderr=subprocess.STDOUT, shell=True)
+                                     "no --keep-time yes --tidy-mark no "
+                                     "--force-output yes '{0}'; exit 0".format(
+                                     inplace), stderr=subprocess.STDOUT,
+                                     shell=True)
 
     for line in output.split("\n"):
         if "Warning:" in line:
@@ -101,7 +102,15 @@ def tidy(inplace):
             elif '<table> lacks "summary" attribute' in line:
                 # Happens for tables, TODO: Check this is normal.
                 continue
+            elif 'proprietary attribute "data-toggle"' in line or \
+                 'proprietary attribute "data-target"':
+                # Some of our own tricks
+                continue
             else:
                 assert False, (inplace, line)
         elif "Error:" in line:
-            assert False, line
+            if '<time> is not recognized' in line:
+                # False alarm, time is proper HTML5.
+                continue
+            else:
+                assert False, line

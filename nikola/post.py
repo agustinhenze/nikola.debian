@@ -27,32 +27,43 @@ from __future__ import unicode_literals, print_function
 
 import codecs
 import os
+import re
+import sys
+import string
 
+import unidecode
 import lxml.html
 
-from . import utils
+from .utils import to_datetime, slugify
 
 __all__ = ['Post']
+
+TEASER_REGEXP = re.compile('<!--\s*TEASER_END(:(.+))?\s*-->', re.IGNORECASE)
 
 
 class Post(object):
 
     """Represents a blog post or web page."""
 
-    def __init__(self, source_path, cache_folder, destination, use_in_feeds,
-                 translations, default_lang, blog_url, messages, template_name,
-                 file_metadata_regexp=None):
+    def __init__(
+        self, source_path, cache_folder, destination, use_in_feeds,
+        translations, default_lang, base_url, messages, template_name,
+        file_metadata_regexp=None, tzinfo=None
+    ):
         """Initialize post.
 
-        The base path is the .txt post file. From it we calculate
+        The source path is the .txt post file. From it we calculate
         the meta file, as well as any translations available, and
         the .html fragment file path.
         """
         self.translated_to = set([default_lang])
+        self.tags = ''
+        self.date = None
         self.prev_post = None
         self.next_post = None
-        self.blog_url = blog_url
+        self.base_url = base_url
         self.is_draft = False
+        self.is_mathjax = False
         self.source_path = source_path  # posts/blah.txt
         self.post_name = os.path.splitext(source_path)[0]  # posts/blah
         # cache/posts/blah.html
@@ -63,24 +74,27 @@ class Post(object):
         self.default_lang = default_lang
         self.messages = messages
         self.template_name = template_name
-        if os.path.isfile(self.metadata_path):
-            with codecs.open(self.metadata_path, "r", "utf8") as meta_file:
-                meta_data = meta_file.readlines()
-            while len(meta_data) < 6:
-                meta_data.append("")
-            (default_title, default_pagename, self.date, self.tags,
-                self.link, default_description) = [x.strip() for x in
-                                                   meta_data][:6]
-        else:
-            (default_title, default_pagename, self.date, self.tags,
-                self.link, default_description) = utils.get_meta(
-                    self.source_path, file_metadata_regexp)
+        self.meta = get_meta(self, file_metadata_regexp)
+
+        default_title = self.meta.get('title', '')
+        default_pagename = self.meta.get('slug', '')
+        default_description = self.meta.get('description', '')
+
+        for k, v in self.meta.items():
+            if k not in ['title', 'slug', 'description']:
+                if sys.version_info[0] == 2:
+                    setattr(self, unidecode.unidecode(unicode(k)), v)  # NOQA
+                else:
+                    setattr(self, k, v)
 
         if not default_title or not default_pagename or not self.date:
-            raise OSError("You must set a title and slug and date! [%s]" %
-                          source_path)
+            raise OSError("You must set a title (found '{0}'), a slug (found "
+                          "'{1}') and a date (found '{2}')! [in file "
+                          "{3}]".format(default_title, default_pagename,
+                                        self.date, source_path))
 
-        self.date = utils.to_datetime(self.date)
+        # If timezone is set, build localized datetime.
+        self.date = to_datetime(self.date, tzinfo)
         self.tags = [x.strip() for x in self.tags.split(',')]
         self.tags = [_f for _f in self.tags if _f]
 
@@ -89,45 +103,30 @@ class Post(object):
         self.is_draft = 'draft' in self.tags
         self.tags = [t for t in self.tags if t != 'draft']
 
+        # If mathjax is a tag, then enable mathjax rendering support
+        self.is_mathjax = 'mathjax' in self.tags
+
         self.pagenames = {}
         self.titles = {}
         self.descriptions = {}
-        # Load internationalized titles
-        # TODO: this has gotten much too complicated. Rethink.
+
+        # Load internationalized metadata
         for lang in translations:
             if lang == default_lang:
                 self.titles[lang] = default_title
                 self.pagenames[lang] = default_pagename
                 self.descriptions[lang] = default_description
             else:
-                metadata_path = self.metadata_path + "." + lang
-                source_path = self.source_path + "." + lang
-                if os.path.isfile(source_path):
+                if os.path.isfile(self.source_path + "." + lang):
                     self.translated_to.add(lang)
-                try:
-                    if os.path.isfile(metadata_path):
-                        with codecs.open(
-                                metadata_path, "r", "utf8") as meta_file:
-                            meta_data = [x.strip() for x in
-                                         meta_file.readlines()]
-                            while len(meta_data) < 6:
-                                meta_data.append("")
-                            self.titles[lang] = meta_data[0] or default_title
-                            self.pagenames[lang] = meta_data[1] or\
-                                default_pagename
-                            self.descriptions[lang] = meta_data[5] or\
-                                default_description
-                    else:
-                        ttitle, ppagename, tmp1, tmp2, tmp3, ddescription = \
-                            utils.get_meta(source_path, file_metadata_regexp)
-                        self.titles[lang] = ttitle or default_title
-                        self.pagenames[lang] = ppagename or default_pagename
-                        self.descriptions[lang] = ddescription or\
-                            default_description
-                except:
-                    self.titles[lang] = default_title
-                    self.pagenames[lang] = default_pagename
-                    self.descriptions[lang] = default_description
+
+                meta = self.meta.copy()
+                meta.update(get_meta(self, file_metadata_regexp, lang))
+
+                # FIXME this only gets three pieces of metadata from the i18n files
+                self.titles[lang] = meta.get('title', default_title)
+                self.pagenames[lang] = meta.get('slug', default_pagename)
+                self.descriptions[lang] = meta.get('description', default_description)
 
     def title(self, lang):
         """Return localized title."""
@@ -164,12 +163,12 @@ class Post(object):
         """Return path to the translation's file, or to the original."""
         file_name = self.base_path
         if lang != self.default_lang:
-            file_name_lang = file_name + ".%s" % lang
+            file_name_lang = '.'.join((file_name, lang))
             if os.path.exists(file_name_lang):
                 file_name = file_name_lang
         return file_name
 
-    def text(self, lang, teaser_only=False):
+    def text(self, lang, teaser_only=False, strip_html=False):
         """Read the post file for that language and return its contents"""
         file_name = self._translated_file_path(lang)
 
@@ -177,22 +176,30 @@ class Post(object):
             data = post_file.read()
 
         if data:
-            data = lxml.html.make_links_absolute(data, self.permalink())
+            data = lxml.html.make_links_absolute(data, self.permalink(lang=lang))
         if data and teaser_only:
             e = lxml.html.fromstring(data)
             teaser = []
+            teaser_str = self.messages[lang]["Read more"] + '...'
             flag = False
             for elem in e:
                 elem_string = lxml.html.tostring(elem).decode('utf8')
-                if '<!-- TEASER_END -->' in elem_string.upper():
+                match = TEASER_REGEXP.match(elem_string)
+                if match:
                     flag = True
+                    if match.group(2):
+                        teaser_str = match.group(2)
                     break
                 teaser.append(elem_string)
             if flag:
-                teaser.append('<p><a href="%s">%s...</a></p>' %
-                              (self.permalink(lang),
-                               self.messages[lang]["Read more"]))
+                teaser.append('<p><a href="{0}">{1}</a></p>'.format(
+                    self.permalink(lang), teaser_str))
             data = ''.join(teaser)
+
+        if data and strip_html:
+            content = lxml.html.fromstring(data)
+            data = content.text_content().strip()  # No whitespace wanted.
+
         return data
 
     def destination_path(self, lang, extension='.html'):
@@ -206,9 +213,9 @@ class Post(object):
         pieces = list(os.path.split(self.translations[lang]))
         pieces += list(os.path.split(self.folder))
         pieces += [self.pagenames[lang] + extension]
-        pieces = [_f for _f in pieces if _f]
+        pieces = [_f for _f in pieces if _f and _f != '.']
         if absolute:
-            pieces = [self.blog_url] + pieces
+            pieces = [self.base_url] + pieces
         else:
             pieces = [""] + pieces
         link = "/".join(pieces)
@@ -216,3 +223,166 @@ class Post(object):
 
     def source_ext(self):
         return os.path.splitext(self.source_path)[1]
+
+# Code that fetches metadata from different places
+
+
+def re_meta(line, match=None):
+    """re.compile for meta"""
+    if match:
+        reStr = re.compile('^\.\. {0}: (.*)'.format(re.escape(match)))
+    else:
+        reStr = re.compile('^\.\. (.*?): (.*)')
+    result = reStr.findall(line.strip())
+    if match and result:
+        return (match, result[0])
+    elif not match and result:
+        return (result[0][0], result[0][1].strip())
+    else:
+        return (None,)
+
+
+def _get_metadata_from_filename_by_regex(filename, metadata_regexp):
+    """
+    Tries to ried the metadata from the filename based on the given re.
+    This requires to use symbolic group names in the pattern.
+
+    The part to read the metadata from the filename based on a regular
+    expression is taken from Pelican - pelican/readers.py
+    """
+    match = re.match(metadata_regexp, filename)
+    meta = {}
+
+    if match:
+        # .items() for py3k compat.
+        for key, value in match.groupdict().items():
+            meta[key.lower()] = value  # metadata must be lowercase
+
+    return meta
+
+
+def get_metadata_from_file(source_path, lang=None):
+    """Extracts metadata from the file itself, by parsing contents."""
+    try:
+        if lang:
+            source_path = "{0}.{1}".format(source_path, lang)
+        with codecs.open(source_path, "r", "utf8") as meta_file:
+            meta_data = [x.strip() for x in meta_file.readlines()]
+        return _get_metadata_from_file(meta_data)
+    except Exception:  # The file may not exist, for multilingual sites
+        return {}
+
+
+def _get_metadata_from_file(meta_data):
+    """Parse file contents and obtain metadata.
+
+    >>> g = _get_metadata_from_file
+    >>> list(g([]).values())
+    []
+    >>> str(g(["FooBar","======"])["title"])
+    'FooBar'
+    >>> str(g(["#FooBar"])["title"])
+    'FooBar'
+    >>> str(g([".. title: FooBar"])["title"])
+    'FooBar'
+    >>> 'title' in g(["",".. title: FooBar"])
+    False
+
+    """
+    meta = {}
+
+    re_md_title = re.compile(r'^{0}([^{0}].*)'.format(re.escape('#')))
+    # Assuming rst titles are going to be at least 4 chars long
+    # otherwise this detects things like ''' wich breaks other markups.
+    re_rst_title = re.compile(r'^([{0}]{{4,}})'.format(re.escape(
+        string.punctuation)))
+
+    for i, line in enumerate(meta_data):
+        if not line:
+            break
+        if 'title' not in meta:
+            match = re_meta(line, 'title')
+            if match[0]:
+                meta['title'] = match[1]
+        if 'title' not in meta:
+            if re_rst_title.findall(line) and i > 0:
+                meta['title'] = meta_data[i - 1].strip()
+        if 'title' not in meta:
+            if re_md_title.findall(line):
+                meta['title'] = re_md_title.findall(line)[0]
+
+        match = re_meta(line)
+        if match[0]:
+            meta[match[0]] = match[1]
+
+    return meta
+
+
+def get_metadata_from_meta_file(path, lang=None):
+    """Takes a post path, and gets data from a matching .meta file."""
+    meta_path = os.path.splitext(path)[0] + '.meta'
+    if lang:
+        meta_path += '.' + lang
+    if os.path.isfile(meta_path):
+        with codecs.open(meta_path, "r", "utf8") as meta_file:
+            meta_data = meta_file.readlines()
+        while len(meta_data) < 6:
+            meta_data.append("")
+        (title, slug, date, tags, link, description) = [
+            x.strip() for x in meta_data][:6]
+
+        meta = {}
+
+        if title:
+            meta['title'] = title
+        if slug:
+            meta['slug'] = slug
+        if date:
+            meta['date'] = date
+        if tags:
+            meta['tags'] = tags
+        if link:
+            meta['link'] = link
+        if description:
+            meta['description'] = description
+
+        return meta
+    else:
+        return {}
+
+
+def get_meta(post, file_metadata_regexp=None, lang=None):
+    """Get post's meta from source.
+
+    If ``file_metadata_regexp`` is given it will be tried to read
+    metadata from the filename.
+    If any metadata is then found inside the file the metadata from the
+    file will override previous findings.
+    """
+    meta = {}
+
+    meta.update(get_metadata_from_meta_file(post.metadata_path, lang))
+
+    if meta:
+        return meta
+
+    if file_metadata_regexp is not None:
+        meta.update(_get_metadata_from_filename_by_regex(post.source_path,
+                                                         file_metadata_regexp))
+
+    meta.update(get_metadata_from_file(post.source_path, lang))
+
+    if lang is None:
+        # Only perform these checks for the default language
+
+        if 'slug' not in meta:
+            # If no slug is found in the metadata use the filename
+            meta['slug'] = slugify(os.path.splitext(
+                os.path.basename(post.source_path))[0])
+
+        if 'title' not in meta:
+            # If no title is found, use the filename without extension
+            meta['title'] = os.path.splitext(
+                os.path.basename(post.source_path))[0]
+
+    return meta

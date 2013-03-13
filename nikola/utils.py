@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2012 Roberto Alsina y otros.
 
 # Permission is hereby granted, free of charge, to any
@@ -33,7 +34,6 @@ import re
 import codecs
 import json
 import shutil
-import string
 import subprocess
 import sys
 from zipfile import ZipFile as zip
@@ -42,6 +42,7 @@ try:
 except ImportError:
     pass
 
+import pytz
 
 if sys.version_info[0] == 3:
     # Python 3
@@ -50,7 +51,7 @@ if sys.version_info[0] == 3:
     unichr = chr
 else:
     bytes_str = str
-    unicode_str = unicode
+    unicode_str = unicode  # NOQA
 
 from doit import tools
 from unidecode import unidecode
@@ -58,9 +59,8 @@ from unidecode import unidecode
 import PyRSS2Gen as rss
 
 __all__ = ['get_theme_path', 'get_theme_chain', 'load_messages', 'copy_tree',
-           'generic_rss_renderer',
-           'copy_file', 'slugify', 'unslugify', 'get_meta', 'to_datetime',
-           'apply_filters', 'config_changed', 'get_crumbs']
+           'generic_rss_renderer', 'copy_file', 'slugify', 'unslugify',
+           'to_datetime', 'apply_filters', 'config_changed', 'get_crumbs']
 
 
 class CustomEncoder(json.JSONEncoder):
@@ -86,13 +86,13 @@ class config_changed(tools.config_changed):
                 byte_data = data
             return hashlib.md5(byte_data).hexdigest()
         else:
-            raise Exception(
-                ('Invalid type of config_changed parameter got %s' +
-                 ', must be string or dict') % (type(self.config),))
+            raise Exception('Invalid type of config_changed parameter -- got '
+                            '{0}, must be string or dict'.format(type(
+                                self.config)))
 
     def __repr__(self):
-        return "Change with config: %s" % json.dumps(
-            self.config, cls=CustomEncoder)
+        return "Change with config: {0}".format(json.dumps(self.config,
+                                                           cls=CustomEncoder))
 
 
 def get_theme_path(theme):
@@ -107,111 +107,7 @@ def get_theme_path(theme):
                             'data', 'themes', theme)
     if os.path.isdir(dir_name):
         return dir_name
-    raise Exception("Can't find theme '%s'" % theme)
-
-
-def re_meta(line, match):
-    """re.compile for meta"""
-    reStr = re.compile('^%s(.*)' % re.escape(match))
-    result = reStr.findall(line)
-    if result:
-        return result[0].strip()
-    else:
-        return ''
-
-
-def _get_metadata_from_filename_by_regex(filename, metadata_regexp):
-    """
-    Tries to ried the metadata from the filename based on the given re.
-    This requires to use symbolic group names in the pattern.
-
-    The part to read the metadata from the filename based on a regular
-    expression is taken from Pelican - pelican/readers.py
-    """
-    title = slug = date = tags = link = description = ''
-    match = re.match(metadata_regexp, filename)
-    if match:
-        # .items() for py3k compat.
-        for key, value in match.groupdict().items():
-            key = key.lower()  # metadata must be lowercase
-
-            if key == 'title':
-                title = value
-            if key == 'slug':
-                slug = value
-            if key == 'date':
-                date = value
-            if key == 'tags':
-                tags = value
-            if key == 'link':
-                link = value
-            if key == 'description':
-                description = value
-
-    return (title, slug, date, tags, link, description)
-
-
-def _get_metadata_from_file(source_path, title='', slug='', date='', tags='',
-                            link='', description=''):
-    re_md_title = re.compile(r'^%s([^%s].*)' %
-                            (re.escape('#'), re.escape('#')))
-    # Assuming rst titles are going to be at least 4 chars long
-    # otherwise this detects things like ''' wich breaks other markups.
-    re_rst_title = re.compile(r'^([%s]{4,})' % re.escape(string.punctuation))
-
-    with codecs.open(source_path, "r", "utf8") as meta_file:
-        meta_data = meta_file.readlines(15)
-
-    for i, meta in enumerate(meta_data):
-        if not title:
-            title = re_meta(meta, '.. title:')
-        if not title:
-            if re_rst_title.findall(meta) and i > 0:
-                title = meta_data[i - 1].strip()
-        if not title:
-            if re_md_title.findall(meta):
-                title = re_md_title.findall(meta)[0]
-        if not slug:
-            slug = re_meta(meta, '.. slug:')
-        if not date:
-            date = re_meta(meta, '.. date:')
-        if not tags:
-            tags = re_meta(meta, '.. tags:')
-        if not link:
-            link = re_meta(meta, '.. link:')
-        if not description:
-            description = re_meta(meta, '.. description:')
-
-    return (title, slug, date, tags, link, description)
-
-
-def get_meta(source_path, file_metadata_regexp=None):
-    """Get post's meta from source.
-
-    If ``file_metadata_regexp`` ist given it will be tried to read
-    metadata from the filename.
-    If any metadata is then found inside the file the metadata from the
-    file will override previous findings.
-    """
-    title = slug = date = tags = link = description = ''
-
-    if not (file_metadata_regexp is None):
-        (title, slug, date, tags, link,
-         description) = _get_metadata_from_filename_by_regex(
-             source_path, file_metadata_regexp)
-
-    (title, slug, date, tags, link, description) = _get_metadata_from_file(
-        source_path, title, slug, date, tags, link, description)
-
-    if not slug:
-        # If no slug is found in the metadata use the filename
-        slug = slugify(os.path.splitext(os.path.basename(source_path))[0])
-
-    if not title:
-        # If no title is found, use the filename without extension
-        title = os.path.splitext(os.path.basename(source_path))[0]
-
-    return (title, slug, date, tags, link, description)
+    raise Exception("Can't find theme '{0}'".format(theme))
 
 
 def get_template_engine(themes):
@@ -267,8 +163,8 @@ def load_messages(themes, translations):
                 sorted(english.MESSAGES.keys()) and \
                     lang not in warned:
                 # FIXME: get real logging in place
-                print("Warning: Incomplete translation for language '%s'." %
-                      lang)
+                print("Warning: Incomplete translation for language "
+                      "'{0}'.".format(lang))
                 warned.append(lang)
             messages[lang].update(english.MESSAGES)
             messages[lang].update(translation.MESSAGES)
@@ -325,7 +221,9 @@ def generic_rss_renderer(lang, title, link, description, timeline, output_path,
             'link': post.permalink(lang, absolute=True),
             'description': post.text(lang, teaser_only=rss_teasers),
             'guid': post.permalink(lang, absolute=True),
-            'pubDate': post.date,
+            # PyRSS2Gen's pubDate is GMT time.
+            'pubDate': (post.date if post.date.tzinfo is None else
+                        post.date.astimezone(pytz.timezone('UTC'))),
         }
         items.append(rss.RSSItem(**args))
     rss_obj = rss.RSS2(
@@ -386,6 +284,16 @@ def slugify(value):
     and converts spaces to hyphens.
 
     From Django's "django/template/defaultfilters.py".
+
+    >>> slugify('\xe1\xe9\xed.\xf3\xfa')
+    'aeiou'
+
+    >>> slugify('foo/bar')
+    'foobar'
+
+    >>> slugify('foo bar')
+    'foo-bar'
+
     """
     value = unidecode(value)
     # WARNING: this may not be python2/3 equivalent
@@ -418,22 +326,23 @@ def extract_all(zipfile):
         namelist = z.namelist()
         for f in namelist:
             if f.endswith('/') and '..' in f:
-                raise UnsafeZipException(
-                    'The zip file contains ".." and is not safe to expand.')
+                raise UnsafeZipException('The zip file contains ".." and is '
+                                         'not safe to expand.')
         for f in namelist:
             if f.endswith('/'):
                 if not os.path.isdir(f):
                     try:
                         os.makedirs(f)
                     except:
-                        raise OSError("mkdir '%s' error!" % f)
+                        raise OSError("Failed making {0} directory "
+                                      "tree!".format(f))
             else:
                 z.extract(f)
     os.chdir(pwd)
 
 
 # From https://github.com/lepture/liquidluck/blob/develop/liquidluck/utils.py
-def to_datetime(value):
+def to_datetime(value, tzinfo=None):
     if isinstance(value, datetime.datetime):
         return value
     supported_formats = [
@@ -451,10 +360,14 @@ def to_datetime(value):
     ]
     for format in supported_formats:
         try:
-            return datetime.datetime.strptime(value, format)
+            dt = datetime.datetime.strptime(value, format)
+            if tzinfo is None:
+                return dt
+            # Build a localized time by using a given timezone.
+            return tzinfo.localize(dt)
         except ValueError:
             pass
-    raise ValueError('Unrecognized date/time: %r' % value)
+    raise ValueError('Unrecognized date/time: {0!r}'.format(value))
 
 
 def apply_filters(task, filters):

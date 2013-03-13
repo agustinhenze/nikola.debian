@@ -38,8 +38,8 @@ dependencies = [
     'unidecode',
     'lxml',
     'yapsy',
-    'mock>=1.0.0',
     'PyRSS2Gen',
+    'pytz',
 ]
 
 if sys.version_info[0] == 2:
@@ -182,7 +182,7 @@ def find_package_data(
     return out
 
 setup(name='Nikola',
-      version='5.3',
+      version='5.4.2',
       description='Static blog/website generator',
       author='Roberto Alsina and others',
       author_email='ralsina@netmanagers.com.ar',

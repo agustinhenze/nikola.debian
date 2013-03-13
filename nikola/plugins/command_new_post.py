@@ -25,7 +25,6 @@
 from __future__ import unicode_literals, print_function
 import codecs
 import datetime
-from optparse import OptionParser
 import os
 import sys
 
@@ -51,9 +50,9 @@ def filter_post_pages(compiler, is_post, post_compilers, post_pages):
     if not filtered:
         type_name = "post" if is_post else "page"
         raise Exception("Can't find a way, using your configuration, to create"
-                        "a %s in format %s. You may want to tweak "
-                        "post_compilers or post_pages in conf.py" %
-                        (type_name, compiler))
+                        "a {0} in format {1}. You may want to tweak "
+                        "post_compilers or post_pages in conf.py".format(
+                            type_name, compiler))
     return filtered[0]
 
 
@@ -61,42 +60,88 @@ class CommandNewPost(Command):
     """Create a new post."""
 
     name = "new_post"
+    doc_usage = "[options] [path]"
+    doc_purpose = "Create a new blog post or site page."
+    cmd_options = [
+        {
+            'name': 'is_page',
+            'short': 'p',
+            'long': 'page',
+            'type': bool,
+            'default': False,
+            'help': 'Create a page instead of a blog post.'
+        },
+        {
+            'name': 'title',
+            'short': 't',
+            'long': 'title',
+            'type': str,
+            'default': '',
+            'help': 'Title for the page/post.'
+        },
+        {
+            'name': 'tags',
+            'long': 'tags',
+            'type': str,
+            'default': '',
+            'help': 'Comma-separated tags for the page/post.'
+        },
+        {
+            'name': 'onefile',
+            'short': '1',
+            'type': bool,
+            'default': False,
+            'help': 'Create post with embedded metadata (single file format)'
+        },
+        {
+            'name': 'twofile',
+            'short': '2',
+            'type': bool,
+            'default': False,
+            'help': 'Create post with separate metadata (two file format)'
+        },
+        {
+            'name': 'post_format',
+            'short': 'f',
+            'long': 'format',
+            'type': str,
+            'default': 'rest',
+            'help': 'Markup format for post, one of rest, markdown, wiki, '
+                    'bbcode, html, textile, txt2tags',
+        }
+    ]
 
-    def run(self, *args):
-        """Create a new post."""
+    def _execute(self, options, args):
+        """Create a new post or page."""
 
         compiler_names = [p.name for p in
                           self.site.plugin_manager.getPluginsOfCategory(
                               "PageCompiler")]
 
-        parser = OptionParser(usage="nikola %s [options]" % self.name)
-        parser.add_option('-p', '--page', dest='is_post', action='store_false',
-                          default=True, help='Create a page instead of a blog '
-                          'post.')
-        parser.add_option('-t', '--title', dest='title', help='Title for the '
-                          'page/post.', default=None)
-        parser.add_option('--tags', dest='tags', help='Comma-separated tags '
-                          'for the page/post.', default='')
-        parser.add_option('-1', dest='onefile', action='store_true',
-                          help='Create post with embedded metadata (single '
-                          'file format).',
-                          default=self.site.config.get('ONE_FILE_POSTS', True))
-        parser.add_option('-2', dest='onefile', action='store_false',
-                          help='Create post with separate metadata (two file '
-                          'format).',
-                          default=self.site.config.get('ONE_FILE_POSTS', True))
-        parser.add_option('-f', '--format', dest='post_format', default='rest',
-                          help='Format for post (one of %s)' %
-                          ','.join(compiler_names))
-        (options, args) = parser.parse_args(list(args))
+        if len(args) > 1:
+            print(self.help())
+            return False
+        elif args:
+            path = args[0]
+        else:
+            path = None
 
-        is_post = options.is_post
-        title = options.title
-        tags = options.tags
-        onefile = options.onefile
-        post_format = options.post_format
+        is_page = options.get('is_page', False)
+        is_post = not is_page
+        title = options['title'] or None
+        tags = options['tags']
+        onefile = options['onefile']
+        twofile = options['twofile']
+
+        if twofile:
+            onefile = False
+        if not onefile and not twofile:
+            onefile = self.site.config.get('ONE_FILE_POSTS', True)
+
+        post_format = options['post_format']
+
         if post_format not in compiler_names:
-            print("ERROR: Unknown post format %s" % post_format)
+            print("ERROR: Unknown post format " + post_format)
             return
         compiler_plugin = self.site.plugin_manager.getPluginByName(
             post_format, "PageCompiler").plugin_object
@@ -118,19 +163,29 @@ class CommandNewPost(Command):
         if isinstance(title, bytes):
             title = title.decode(sys.stdin.encoding)
         title = title.strip()
-        slug = utils.slugify(title)
+        if not path:
+            slug = utils.slugify(title)
+        else:
+            slug = utils.slugify(os.path.splitext(os.path.basename(path))[0])
         date = datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
         data = [title, slug, date, tags]
         output_path = os.path.dirname(entry[0])
         meta_path = os.path.join(output_path, slug + ".meta")
         pattern = os.path.basename(entry[0])
         suffix = pattern[1:]
-        txt_path = os.path.join(output_path, slug + suffix)
+        if not path:
+            txt_path = os.path.join(output_path, slug + suffix)
+        else:
+            txt_path = path
 
         if (not onefile and os.path.isfile(meta_path)) or \
                 os.path.isfile(txt_path):
             print("The title already exists!")
             exit()
+
+        d_name = os.path.dirname(txt_path)
+        if not os.path.exists(d_name):
+            os.makedirs(d_name)
         compiler_plugin.create_post(txt_path, onefile, title, slug, date, tags)
 
         if not onefile:  # write metadata file
