@@ -1,3 +1,13 @@
+nikola (5.4.2-1) unstable; urgency=low
+
+  * Imported Upstream version 5.4.2
+  * Removed unused manuals under debian folder
+  * Updated README.source file with details about the files deleted for make
+    the package dfsg compliant
+  * Fixed lintian warning about non-canonical vcs field
+
+ -- Agustin Henze <tin@sluc.org.ar>  Wed, 13 Mar 2013 21:31:44 -0300
+
 nikola (5.3-1) unstable; urgency=low
 
   * Imported Upstream version 5.3
