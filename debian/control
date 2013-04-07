@@ -30,7 +30,7 @@ Depends: ${python:Depends}, ${misc:Depends},
  libjs-jquery-colorbox,
  libjs-twitter-bootstrap,
  libjs-jquery-slides,
-Recommends: python-webassets
+Recommends: python-webassets, python-requests
 Suggests: python-jinja2
 Description: simple yet powerful and flexible static website and blog generator
  Nikola is a static site and blog generator. Feed information to it on one
