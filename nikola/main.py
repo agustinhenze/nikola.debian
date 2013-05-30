@@ -35,16 +35,13 @@ from doit.cmd_help import Help as DoitHelp
 from doit.cmd_run import Run as DoitRun
 
 from .nikola import Nikola
+from .utils import _reload
 
 
 def main(args):
     sys.path.append('')
     try:
         import conf
-        if sys.version_info[0] > 2:
-            from imp import reload as _reload
-        else:
-            _reload = reload  # NOQA
         _reload(conf)
         config = conf.__dict__
     except ImportError:
@@ -111,7 +108,7 @@ class DoitNikola(DoitMain):
         sub_cmds = self.get_commands()
         args = self.process_args(cmd_args)
 
-        if len(args) == 0 or args == ["--help"]:
+        if len(args) == 0 or any(arg in ["--help", '-h'] for arg in args):
             cmd_args = ['help']
             args = ['help']
 

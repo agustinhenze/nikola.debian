@@ -1,11 +1,13 @@
 ## -*- coding: utf-8 -*-
 <%namespace file="base_helper.tmpl" import="*"/>
+${set_locale(lang)}
 <!DOCTYPE html>
 <html lang="${lang}">
 <head>
     ${html_head()}
     <%block name="extra_head">
     </%block>
+    ${extra_head_data}
 </head>
 <body class="home blog">
     %if add_this_buttons:
@@ -23,7 +25,7 @@
             <%block name="belowtitle">
             %if len(translations) > 1:
             <small>
-                ${(messages[lang][u"Also available in"])}:&nbsp;
+                ${(messages("Also available in"))}:&nbsp;
                 ${html_translations()}
             </small>
             %endif
@@ -38,6 +40,6 @@
         <div id="footer">
             ${content_footer}
         </div>
-    </div>        
+    </div>
     ${analytics}
 </body>

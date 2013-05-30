@@ -46,31 +46,35 @@ class Indexes(Task):
             "index_teasers": self.site.config['INDEX_TEASERS'],
             "output_folder": self.site.config['OUTPUT_FOLDER'],
             "filters": self.site.config['FILTERS'],
+            "hide_untranslated_posts": self.site.config['HIDE_UNTRANSLATED_POSTS'],
+            "indexes_title": self.site.config['INDEXES_TITLE'],
+            "indexes_pages": self.site.config['INDEXES_PAGES'],
+            "blog_title": self.site.config["BLOG_TITLE"],
         }
 
         template_name = "index.tmpl"
-        # TODO: timeline is global, get rid of it
         posts = [x for x in self.site.timeline if x.use_in_feeds]
-        # Split in smaller lists
-        lists = []
-        while posts:
-            lists.append(posts[:kw["index_display_post_count"]])
-            posts = posts[kw["index_display_post_count"]:]
-        num_pages = len(lists)
-        if not lists:
+        if not posts:
             yield {'basename': 'render_indexes', 'actions': []}
         for lang in kw["translations"]:
+            # Split in smaller lists
+            lists = []
+            if kw["hide_untranslated_posts"]:
+                filtered_posts = [x for x in posts if x.is_translation_available(lang)]
+            else:
+                filtered_posts = posts
+            while filtered_posts:
+                lists.append(filtered_posts[:kw["index_display_post_count"]])
+                filtered_posts = filtered_posts[kw["index_display_post_count"]:]
+            num_pages = len(lists)
             for i, post_list in enumerate(lists):
                 context = {}
-                if self.site.config.get("INDEXES_TITLE", ""):
-                    indexes_title = self.site.config['INDEXES_TITLE']
-                else:
-                    indexes_title = self.site.config["BLOG_TITLE"]
+                indexes_title = kw['indexes_title'] or kw['blog_title']
                 if not i:
                     context["title"] = indexes_title
                 else:
-                    if self.site.config.get("INDEXES_PAGES", ""):
-                        indexes_pages = self.site.config["INDEXES_PAGES"] % i
+                    if kw["indexes_pages"]:
+                        indexes_pages = kw["indexes_pages"] % i
                     else:
                         indexes_pages = " (" + \
                             kw["messages"][lang]["old posts page %d"] % i + ")"
@@ -87,7 +91,7 @@ class Indexes(Task):
                 context["permalink"] = self.site.link("index", i, lang)
                 output_name = os.path.join(
                     kw['output_folder'], self.site.path("index", i,
-                                                        lang)).encode('utf8')
+                                                        lang))
                 task = self.site.generic_post_list_renderer(
                     lang,
                     post_list,
@@ -103,7 +107,6 @@ class Indexes(Task):
 
         if not self.site.config["STORY_INDEX"]:
             return
-        # TODO: do story indexes as described in #232
         kw = {
             "translations": self.site.config['TRANSLATIONS'],
             "post_pages": self.site.config["post_pages"],

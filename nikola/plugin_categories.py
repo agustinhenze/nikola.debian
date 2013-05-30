@@ -145,12 +145,19 @@ class PageCompiler(object):
     """Plugins that compile text files into HTML."""
 
     name = "dummy compiler"
+    default_metadata = {
+        'title': '',
+        'slug': '',
+        'date': '',
+        'tags': '',
+        'link': '',
+        'description': '',
+    }
 
     def compile_html(self, source, dest):
         """Compile the source, save it on dest."""
         raise NotImplementedError()
 
-    def create_post(self, path, onefile=False, title="", slug="", date="",
-                    tags=""):
+    def create_post(self, path, onefile=False, **kw):
         """Create post file with optional metadata."""
         raise NotImplementedError()
