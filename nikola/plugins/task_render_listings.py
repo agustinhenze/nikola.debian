@@ -78,7 +78,7 @@ class Listings(Task):
                 'files': files,
                 'description': title,
             }
-            self.site.render_template('listing.tmpl', out_name.encode('utf8'),
+            self.site.render_template('listing.tmpl', out_name,
                                       context)
         flag = True
         template_deps = self.site.template_system.template_deps('listing.tmpl')
@@ -91,14 +91,15 @@ class Listings(Task):
             )
             yield {
                 'basename': self.name,
-                'name': out_name.encode('utf8'),
+                'name': out_name,
                 'file_dep': template_deps,
                 'targets': [out_name],
                 'actions': [(render_listing, [None, out_name, dirs, files])],
                 # This is necessary to reflect changes in blog title,
                 # sidebar links, etc.
                 'uptodate': [utils.config_changed(
-                    self.site.config['GLOBAL_CONTEXT'])]
+                    self.site.config['GLOBAL_CONTEXT'])],
+                'clean': True,
             }
             for f in files:
                 ext = os.path.splitext(f)[-1]
@@ -111,14 +112,15 @@ class Listings(Task):
                     f) + '.html'
                 yield {
                     'basename': self.name,
-                    'name': out_name.encode('utf8'),
+                    'name': out_name,
                     'file_dep': template_deps + [in_name],
                     'targets': [out_name],
                     'actions': [(render_listing, [in_name, out_name])],
                     # This is necessary to reflect changes in blog title,
                     # sidebar links, etc.
                     'uptodate': [utils.config_changed(
-                        self.site.config['GLOBAL_CONTEXT'])]
+                        self.site.config['GLOBAL_CONTEXT'])],
+                    'clean': True,
                 }
         if flag:
             yield {

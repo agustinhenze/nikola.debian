@@ -73,7 +73,7 @@ class CommandImportBlogger(Command):
     ]
 
     def _execute(self, options, args):
-        """Import a Wordpress blog from an export file into a Nikola site."""
+        """Import a Blogger blog from an export file into a Nikola site."""
 
         # Parse the data
         if feedparser is None:
@@ -126,7 +126,7 @@ class CommandImportBlogger(Command):
 
     def generate_base_site(self):
         if not os.path.exists(self.output_folder):
-            os.system('nikola init --empty ' + self.output_folder)
+            os.system('nikola init ' + self.output_folder)
         else:
             self.import_into_existing_site = True
             print('The folder {0} already exists - assuming that this is a '
@@ -176,9 +176,16 @@ class CommandImportBlogger(Command):
 
     @staticmethod
     def write_metadata(filename, title, slug, post_date, description, tags):
+        if not description:
+            description = ""
+
         with codecs.open(filename, "w+", "utf8") as fd:
-            fd.write('\n'.join((title, slug, post_date, ','.join(tags), '',
-                                description)))
+            fd.write('{0}\n'.format(title))
+            fd.write('{0}\n'.format(slug))
+            fd.write('{0}\n'.format(post_date))
+            fd.write('{0}\n'.format(','.join(tags)))
+            fd.write('\n')
+            fd.write('{0}\n'.format(description))
 
     def import_item(self, item, out_folder=None):
         """Takes an item from the feed and creates a post file."""
@@ -284,7 +291,7 @@ class CommandImportBlogger(Command):
         if not self.import_into_existing_site:
             filename = 'conf.py'
         else:
-            filename = 'conf.py.wordpress_import-{0}'.format(
+            filename = 'conf.py.blogger_import-{0}'.format(
                 datetime.datetime.now().strftime('%Y%m%d_%H%M%s'))
         config_output_path = os.path.join(self.output_folder, filename)
         print('Configuration will be written to: ' + config_output_path)

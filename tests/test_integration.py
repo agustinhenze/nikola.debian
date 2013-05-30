@@ -3,12 +3,15 @@ from __future__ import unicode_literals, print_function
 
 import codecs
 from contextlib import contextmanager
+import locale
 import os
 import shutil
+import subprocess  # NOQA
 import tempfile
 import unittest
 
 import lxml.html
+from nose.plugins.skip import SkipTest
 
 from context import nikola
 from nikola import main
@@ -66,6 +69,7 @@ class EmptyBuildTest(unittest.TestCase):
     @classmethod
     def tearDownClass(self):
         """Remove the demo site."""
+        shutil.rmtree(self.tmpdir)
 
     def test_build(self):
         """Ensure the build did something."""
@@ -82,12 +86,26 @@ class DemoBuildTest(EmptyBuildTest):
         """Fill the site with demo content."""
         self.init_command.copy_sample_site(self.target_dir)
         self.init_command.create_configuration(self.target_dir)
+        # File for Issue #374 (empty post text)
+        with codecs.open(os.path.join(self.target_dir, 'posts', 'empty.txt'), "wb+", "utf8") as outf:
+            outf.write(
+                ".. title: foobar\n"
+                ".. slug: foobar\n"
+                ".. date: 2013/03/06 19:08:15\n"
+            )
 
 
 class TranslatedBuildTest(EmptyBuildTest):
     """Test a site with translated content."""
 
     dataname = "translated_titles"
+
+    def __init__(self, *a, **kw):
+        super(TranslatedBuildTest, self).__init__(*a, **kw)
+        try:
+            locale.setlocale(locale.LC_ALL, ("es", "utf8"))
+        except:
+            raise SkipTest
 
     def test_translated_titles(self):
         """Check that translated title is picked up."""
@@ -132,6 +150,37 @@ class RelativeLinkTest(DemoBuildTest):
                     flag = True
         # But I also need to be sure it is there!
         self.assertTrue(flag)
+
+
+#class TestCheck(DemoBuildTest):
+    #"""The demo build should pass 'nikola check'"""
+
+    #def test_check_links(self):
+        #with cd(self.target_dir):
+            #r = subprocess.call("nikola check -l", shell=True)
+        #self.assertEqual(r, 0)
+
+    #def test_check_files(self):
+        #with cd(self.target_dir):
+            #r = subprocess.call("nikola check -f", shell=True)
+        #self.assertEqual(r, 0)
+
+
+#class TestCheckFailure(DemoBuildTest):
+    #"""The demo build should pass 'nikola check'"""
+
+    #def test_check_links_fail(self):
+        #with cd(self.target_dir):
+            #os.unlink(os.path.join("output", "archive.html"))
+            #rv = subprocess.call("nikola check -l", shell=True)
+        #self.assertEqual(rv, 1)
+
+    #def test_check_files_fail(self):
+        #with cd(self.target_dir):
+            #with codecs.open(os.path.join("output", "foobar"), "wb+", "utf8") as outf:
+                #outf.write("foo")
+            #rv = subprocess.call("nikola check -f", shell=True)
+        #self.assertEqual(rv, 1)
 
 
 class RelativeLinkTest2(DemoBuildTest):

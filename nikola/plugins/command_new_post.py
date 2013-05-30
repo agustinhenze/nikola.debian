@@ -49,11 +49,29 @@ def filter_post_pages(compiler, is_post, post_compilers, post_pages):
 
     if not filtered:
         type_name = "post" if is_post else "page"
-        raise Exception("Can't find a way, using your configuration, to create"
+        raise Exception("Can't find a way, using your configuration, to create "
                         "a {0} in format {1}. You may want to tweak "
                         "post_compilers or post_pages in conf.py".format(
                             type_name, compiler))
     return filtered[0]
+
+
+def get_default_compiler(is_post, post_compilers, post_pages):
+    """Given post_compilers and post_pages, return a reasonable
+    default compiler for this kind of post/page.
+    """
+
+    # First throw away all the post_pages with the wrong is_post
+    filtered = [entry for entry in post_pages if entry[3] == is_post]
+
+    # Get extensions in filtered post_pages until one matches a compiler
+    for entry in filtered:
+        extension = os.path.splitext(entry[0])[-1]
+        for compiler, extensions in post_compilers.items():
+            if extension in extensions:
+                return compiler
+    # No idea, back to default behaviour
+    return 'rest'
 
 
 class CommandNewPost(Command):
@@ -105,7 +123,7 @@ class CommandNewPost(Command):
             'short': 'f',
             'long': 'format',
             'type': str,
-            'default': 'rest',
+            'default': '',
             'help': 'Markup format for post, one of rest, markdown, wiki, '
                     'bbcode, html, textile, txt2tags',
         }
@@ -140,6 +158,12 @@ class CommandNewPost(Command):
 
         post_format = options['post_format']
 
+        if not post_format:  # Issue #400
+            post_format = get_default_compiler(
+                is_post,
+                self.site.config['post_compilers'],
+                self.site.config['post_pages'])
+
         if post_format not in compiler_names:
             print("ERROR: Unknown post format " + post_format)
             return
@@ -160,12 +184,14 @@ class CommandNewPost(Command):
             title = sys.stdin.readline()
         else:
             print("Title:", title)
-        if isinstance(title, bytes):
+        if isinstance(title, utils.bytes_str):
             title = title.decode(sys.stdin.encoding)
         title = title.strip()
         if not path:
             slug = utils.slugify(title)
         else:
+            if isinstance(path, utils.bytes_str):
+                path = path.decode(sys.stdin.encoding)
             slug = utils.slugify(os.path.splitext(os.path.basename(path))[0])
         date = datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
         data = [title, slug, date, tags]
@@ -186,7 +212,9 @@ class CommandNewPost(Command):
         d_name = os.path.dirname(txt_path)
         if not os.path.exists(d_name):
             os.makedirs(d_name)
-        compiler_plugin.create_post(txt_path, onefile, title, slug, date, tags)
+        compiler_plugin.create_post(
+            txt_path, onefile, title=title,
+            slug=slug, date=date, tags=tags)
 
         if not onefile:  # write metadata file
             with codecs.open(meta_path, "wb+", "utf8") as fd:

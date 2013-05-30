@@ -52,7 +52,7 @@ Each and every one of those is a plugin. Let's look at a typical example:
 
 First, the ``command_serve.plugin`` file:
 
-.. code-block:: init
+.. code-block:: ini
 
     [Core]
     Name = serve
@@ -210,7 +210,7 @@ probably want to do a Task plugin, which will make it be part of the
 ``nikola build`` command. There are the currently available tasks, all
 provided by plugins::
 
-    $ nikola build list
+    $ nikola list
 
     build_bundles
     copy_assets
