@@ -1,53 +1,52 @@
-Files: nikola/data/themes/default/assets/js/slides.jquery.js
-Copyright: 2011 Nathan Searles, http://nathansearles.com
-License: Apache-2.0
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Nikola
+Upstream-Contact: Roberto Alsina <ralsina@kde.org>
+Source: http://nikola.ralsina.com.ar/
 
-Files: nikola/data/themes/default/assets/js/bootstrap.js,
- nikola/data/themes/default/assets/css/bootstrap.css,
- nikola/data/themes/default/assets/css/bootstrap-responsive.css,
+Files: nikola/data/themes/default/assets/js/bootstrap.js
+ nikola/data/themes/default/assets/css/bootstrap.css
+ nikola/data/themes/default/assets/css/bootstrap-responsive.css
 Copyright: 2012 Twitter, Inc.
 License: Apache-2.0
  Licensed under the Apache License, Version 2.0 (the "License");
-
+ .
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
-
+ .
  On Debian systems, the complete text of the Apache-2.0
  License can be found in `/usr/share/common-licenses/Apache-2.0'.
 
-Files: nikola/plugins/task_sitemap/sitemap_gen.py
-Copyright: (c) 2004-2005 Google Inc.
-License: BSD
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions are met:
+Files: nikola/rc4.py
+Copyright: (C) 2012 Bo Zhu http://about.bozhu.me
+License: MIT/X11
 
-     1. Redistributions of source code must retain the above copyright notice,
-        this list of conditions and the following disclaimer.
+Files: nikola/plugins/compile_misaka*
+Copyright: (c) 2013 Chris Lee
+License: MIT/X11
 
-     2. Redistributions in binary form must reproduce the above copyright 
-        notice, this list of conditions and the following disclaimer in the
-        documentation and/or other materials provided with the distribution.
+Files: nikola/plugins/compile_markdown/mdx_podcast.py
+Copyright: (c) 2013 Michael Rabbitt, Roberto Alsina
+License: MIT/X11
 
-     3. Neither the name of pysolr nor the names of its contributors may be used
-        to endorse or promote products derived from this software without
-        specific prior written permission.
+Files: nikola/plugins/compile_markdown/mdx_gist.py
+Copyright: (c) 2013 Michael Rabbitt
+License: MIT/X11
 
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
- ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
- ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Files: nikola/plugins/compile_ipynb*
+Copyright: (c) 2013 Damian Avila
+License: MIT/X11
+
+Files: nikola/plugins/task_localsearch/files/*
+Copyright: (c) 2013 Tipue
+License: MIT/X11
 
 Files: *
 Copyright: (c) 2012 Roberto Alsina y otros.
+License: MIT/X11
+
 License: MIT/X11
  Permission is hereby granted, free of charge, to any person obtaining a copy of
  this software and associated documentation files (the "Software"), to deal in
@@ -68,7 +67,7 @@ License: MIT/X11
  SOFTWARE.
 
 Files: debian/*
-Copyright: (C) 2012 Agustin Henze <tin@sluc.org.ar>
+Copyright: (C) 2012-2013 Agustin Henze <tin@sluc.org.ar>
 License: GPL-3
 
 License: GPL-3
@@ -76,15 +75,15 @@ License: GPL-3
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation; either version 3 of the License, or
  (at your option) any later version.
-
+ .
  This package is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
-
+ .
  You should have received a copy of the GNU General Public License
  along with this package; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
-
+ .
  On Debian systems, the complete text of the GNU General
  Public License can be found in `/usr/share/common-licenses/GPL-3'.
