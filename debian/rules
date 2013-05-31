@@ -24,19 +24,21 @@ override_dh_auto_install:
 				      --install-layout=deb; \
 	done
 	# Documentation
-	mkdir -p debian/nikola/usr/share/doc/nikola; \
-		rst2html docs/manual.txt debian/nikola/usr/share/doc/nikola/manual.html; \
-		rst2html docs/theming.txt debian/nikola/usr/share/doc/nikola/theming.html; \
-		rst2html docs/creating-a-theme.txt debian/nikola/usr/share/doc/nikola/creating-a-theme.html; \
-		rst2html docs/extending.txt debian/nikola/usr/share/doc/nikola/extending.html;
+	rst2html docs/manual.txt debian/nikola/usr/share/doc/nikola/manual.html
+	rst2html docs/theming.txt debian/nikola/usr/share/doc/nikola/theming.html
+	rst2html docs/creating-a-theme.txt debian/nikola/usr/share/doc/nikola/creating-a-theme.html
+	rst2html docs/extending.txt debian/nikola/usr/share/doc/nikola/extending.html
 	# Manpage
 	rst2man docs/man/nikola.1 debian/nikola.1
+	# Drop wrong permission
+	find debian/nikola/usr/lib -perm /a+x -type f -exec chmod -x {} +
+	# Remove a copy of mit license
+	find debian/nikola/usr/lib -name "MIT-LICENSE.txt" -type f -exec rm {} +
 
 override_dh_link:
 	# Remove embedded code from other software pieces
 	# Bootstrap, provided by libjs-twitter-bootstrap on runtime-dep
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/js/bootstrap.js
-	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/js/slides.jquery.js
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap-responsive.css
 	rm debian/nikola/usr/share/pyshared/nikola/data/themes/default/assets/css/bootstrap.css
 	dh_link
