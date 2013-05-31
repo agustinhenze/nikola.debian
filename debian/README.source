@@ -4,68 +4,68 @@ Repackaging upstream source
 nikola's original upstream source has been repackage to exclude DFSG-compliant
 components (minified JavaScript and Stylesheets) from it:
 
-$ diff -ruN nikola-5.4.2.upstream/ nikola-5.4.2~dfsg | diffstat
- default/assets/css/bootstrap-responsive.min.css               |    9 
- default/assets/css/bootstrap.min.css                          |    9 
- default/assets/js/bootstrap.min.js                            |    6 
- default/assets/js/jquery-1.7.2.min.js                         |    4 
- default/assets/js/jquery.colorbox-min.js                      |    4 
- default/assets/js/slides.min.jquery.js                        |   20 
- site-reveal/README                                            |   32 
- site-reveal/assets/css/custom_reveal.css                      |   15 
- site-reveal/assets/css/theme.css                              |   74 
- site-reveal/assets/reveal/LICENSE                             |   19 
+$ diff -ruN nikola-5.4.4.upstream/ nikola-5.4.4~dfsg | diffstat
+ default/assets/css/bootstrap-responsive.min.css               |    9
+ default/assets/css/bootstrap.min.css                          |    9
+ default/assets/js/bootstrap.min.js                            |    6
+ default/assets/js/jquery-1.7.2.min.js                         |    4
+ default/assets/js/jquery.colorbox-min.js                      |    4
+ site-reveal/README                                            |   32
+ site-reveal/assets/css/custom_reveal.css                      |   40
+ site-reveal/assets/css/theme.css                              |   74
+ site-reveal/assets/reveal/LICENSE                             |   19
  site-reveal/assets/reveal/README.md                           |  405 --
- site-reveal/assets/reveal/css/print/paper.css                 |  176 
- site-reveal/assets/reveal/css/print/pdf.css                   |  159 
+ site-reveal/assets/reveal/css/print/paper.css                 |  176
+ site-reveal/assets/reveal/css/print/pdf.css                   |  159
  site-reveal/assets/reveal/css/reveal.css                      | 1260 ------
- site-reveal/assets/reveal/css/reveal.min.css                  |    7 
- site-reveal/assets/reveal/css/theme/README.md                 |   25 
- site-reveal/assets/reveal/css/theme/beige.css                 |  163 
- site-reveal/assets/reveal/css/theme/default.css               |  163 
- site-reveal/assets/reveal/css/theme/night.css                 |  150 
- site-reveal/assets/reveal/css/theme/serif.css                 |  150 
- site-reveal/assets/reveal/css/theme/simple.css                |  152 
- site-reveal/assets/reveal/css/theme/sky.css                   |  156 
- site-reveal/assets/reveal/css/theme/source/beige.scss         |   50 
- site-reveal/assets/reveal/css/theme/source/default.scss       |   42 
- site-reveal/assets/reveal/css/theme/source/night.scss         |   35 
- site-reveal/assets/reveal/css/theme/source/serif.scss         |   33 
- site-reveal/assets/reveal/css/theme/source/simple.scss        |   38 
- site-reveal/assets/reveal/css/theme/source/sky.scss           |   41 
- site-reveal/assets/reveal/css/theme/template/mixins.scss      |   29 
- site-reveal/assets/reveal/css/theme/template/settings.scss    |   33 
- site-reveal/assets/reveal/css/theme/template/theme.scss       |  163 
- site-reveal/assets/reveal/grunt.js                            |   84 
+ site-reveal/assets/reveal/css/reveal.min.css                  |    7
+ site-reveal/assets/reveal/css/theme/README.md                 |   25
+ site-reveal/assets/reveal/css/theme/beige.css                 |  163
+ site-reveal/assets/reveal/css/theme/default.css               |  163
+ site-reveal/assets/reveal/css/theme/night.css                 |  150
+ site-reveal/assets/reveal/css/theme/serif.css                 |  150
+ site-reveal/assets/reveal/css/theme/simple.css                |  152
+ site-reveal/assets/reveal/css/theme/sky.css                   |  156
+ site-reveal/assets/reveal/css/theme/source/beige.scss         |   50
+ site-reveal/assets/reveal/css/theme/source/default.scss       |   42
+ site-reveal/assets/reveal/css/theme/source/night.scss         |   35
+ site-reveal/assets/reveal/css/theme/source/serif.scss         |   33
+ site-reveal/assets/reveal/css/theme/source/simple.scss        |   38
+ site-reveal/assets/reveal/css/theme/source/sky.scss           |   41
+ site-reveal/assets/reveal/css/theme/template/mixins.scss      |   29
+ site-reveal/assets/reveal/css/theme/template/settings.scss    |   33
+ site-reveal/assets/reveal/css/theme/template/theme.scss       |  163
+ site-reveal/assets/reveal/grunt.js                            |   84
  site-reveal/assets/reveal/js/reveal.js                        | 1903 ----------
- site-reveal/assets/reveal/js/reveal.min.js                    |    8 
- site-reveal/assets/reveal/lib/css/zenburn.css                 |  115 
+ site-reveal/assets/reveal/js/reveal.min.js                    |    8
+ site-reveal/assets/reveal/lib/css/zenburn.css                 |  115
  site-reveal/assets/reveal/lib/font/league_gothic-webfont.eot  |binary
  site-reveal/assets/reveal/lib/font/league_gothic-webfont.svg  |  230 -
  site-reveal/assets/reveal/lib/font/league_gothic-webfont.ttf  |binary
  site-reveal/assets/reveal/lib/font/league_gothic-webfont.woff |binary
- site-reveal/assets/reveal/lib/font/league_gothic_license      |    2 
- site-reveal/assets/reveal/lib/js/classList.js                 |    2 
- site-reveal/assets/reveal/lib/js/head.min.js                  |    8 
- site-reveal/assets/reveal/lib/js/html5shiv.js                 |    7 
- site-reveal/assets/reveal/package.json                        |   31 
- site-reveal/assets/reveal/plugin/highlight/highlight.js       |    9 
- site-reveal/assets/reveal/plugin/markdown/markdown.js         |   37 
- site-reveal/assets/reveal/plugin/markdown/showdown.js         |   62 
- site-reveal/assets/reveal/plugin/notes-server/client.js       |   57 
- site-reveal/assets/reveal/plugin/notes-server/index.js        |   58 
- site-reveal/assets/reveal/plugin/notes/notes.js               |  100 
- site-reveal/assets/reveal/plugin/postmessage/postmessage.js   |   42 
- site-reveal/assets/reveal/plugin/print-pdf/print-pdf.js       |   39 
- site-reveal/assets/reveal/plugin/remotes/remotes.js           |   30 
+ site-reveal/assets/reveal/lib/font/league_gothic_license      |    2
+ site-reveal/assets/reveal/lib/js/classList.js                 |    2
+ site-reveal/assets/reveal/lib/js/head.min.js                  |    8
+ site-reveal/assets/reveal/lib/js/html5shiv.js                 |    7
+ site-reveal/assets/reveal/package.json                        |   31
+ site-reveal/assets/reveal/plugin/highlight/highlight.js       |    9
+ site-reveal/assets/reveal/plugin/markdown/markdown.js         |   37
+ site-reveal/assets/reveal/plugin/markdown/showdown.js         |   62
+ site-reveal/assets/reveal/plugin/notes-server/client.js       |   57
+ site-reveal/assets/reveal/plugin/notes-server/index.js        |   58
+ site-reveal/assets/reveal/plugin/notes/notes.js               |  100
+ site-reveal/assets/reveal/plugin/postmessage/postmessage.js   |   42
+ site-reveal/assets/reveal/plugin/print-pdf/print-pdf.js       |   39
+ site-reveal/assets/reveal/plugin/remotes/remotes.js           |   30
  site-reveal/assets/reveal/plugin/zoom-js/zoom.js              |  256 -
- site-reveal/engine                                            |    1 
- site-reveal/parent                                            |    1 
- site-reveal/templates/base.tmpl                               |   78 
- site-reveal/templates/base_helper.tmpl                        |  147 
- site-reveal/templates/index.tmpl                              |   36 
- site-reveal/templates/post.tmpl                               |   29 
- 60 files changed, 6994 deletions(-)
+ site-reveal/engine                                            |    1
+ site-reveal/parent                                            |    1
+ site-reveal/templates/base.tmpl                               |   77
+ site-reveal/templates/base_helper.tmpl                        |  145
+ site-reveal/templates/index.tmpl                              |   32
+ site-reveal/templates/index_helper.tmpl                       |   21
+ site-reveal/templates/post.tmpl                               |   45
+ site-reveal/templates/post_helper.tmpl                        |   73
+ 61 files changed, 7102 deletions(-)
 
-
- -- Agustin Henze <tin@sluc.org.ar>  Wed, 13 Mar 2013 20:58:54 -0300
+ -- Agustin Henze <tin@sluc.org.ar>  Thu, 30 May 2013 18:12:04 -0300
