@@ -1,3 +1,22 @@
+nikola (5.4.4-1) unstable; urgency=low
+
+  [ Agustin Henze ]
+  * Imported Upstream version 5.4.4
+  * debian/copyright:
+    - Converted to machine readable.
+    - Update copyrights.
+  * debian/rules:
+    - Fix wrong permission files
+    - Remove a copy of MIT License
+    - Remove the command that deletes a file that is no longer part of the
+      project.
+  * Update debian/README.source file with the new file differences.
+
+  [ Dererk ]
+  * Recommend py-requests for install_theme feature (Closes: #706658).
+
+ -- Agustin Henze <tin@sluc.org.ar>  Fri, 31 May 2013 20:50:03 -0300
+
 nikola (5.4.2-1) unstable; urgency=low
 
   * Imported Upstream version 5.4.2
