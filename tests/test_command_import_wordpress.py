@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
-from context import nikola
+from .context import nikola
 import os
 import unittest
 import mock
 
+import nikola.plugins.command.import_wordpress
+from .base import BaseTestCase
 
-class BasicCommandImportWordpress(unittest.TestCase):
+
+class BasicCommandImportWordpress(BaseTestCase):
     def setUp(self):
-        self.import_command = nikola.plugins.command_import_wordpress.CommandImportWordpress()
+        self.module = nikola.plugins.command.import_wordpress
+        self.import_command = self.module.CommandImportWordpress()
         self.import_filename = os.path.abspath(os.path.join(
             os.path.dirname(__file__), 'wordpress_export_example.xml'))
 
@@ -51,11 +55,11 @@ class CommandImportWordpressRunTest(BasicCommandImportWordpress):
 
         site_generation_patch = mock.patch('os.system', self.site_generation)
         data_import_patch = mock.patch(
-            'nikola.plugins.command_import_wordpress.CommandImportWordpress.import_posts', self.data_import)
+            'nikola.plugins.command.import_wordpress.CommandImportWordpress.import_posts', self.data_import)
         write_urlmap_patch = mock.patch(
-            'nikola.plugins.command_import_wordpress.CommandImportWordpress.write_urlmap_csv', self.write_urlmap)
+            'nikola.plugins.command.import_wordpress.CommandImportWordpress.write_urlmap_csv', self.write_urlmap)
         write_configuration_patch = mock.patch(
-            'nikola.plugins.command_import_wordpress.CommandImportWordpress.write_configuration', self.write_configuration)
+            'nikola.plugins.command.import_wordpress.CommandImportWordpress.write_configuration', self.write_configuration)
 
         self.patches = [site_generation_patch, data_import_patch,
                         write_urlmap_patch, write_configuration_patch]
@@ -117,7 +121,7 @@ class CommandImportWordpressTest(BasicCommandImportWordpress):
             self.import_filename)
         context = self.import_command.populate_context(channel)
 
-        for required_key in ('POST_PAGES', 'POST_COMPILERS'):
+        for required_key in ('POSTS', 'PAGES', 'COMPILERS'):
             self.assertTrue(required_key in context)
 
         self.assertEqual('de', context['DEFAULT_LANG'])
@@ -133,33 +137,37 @@ class CommandImportWordpressTest(BasicCommandImportWordpress):
             self.import_filename)
         self.import_command.context = self.import_command.populate_context(
             channel)
-        self.import_command.url_map = {}  # For testing we use an empty one.
         self.import_command.output_folder = 'new_site'
         self.import_command.squash_newlines = True
         self.import_command.no_downloads = False
+
+        # Ensuring clean results
+        self.import_command.url_map = {}
+        self.module.links = {}
 
         write_metadata = mock.MagicMock()
         write_content = mock.MagicMock()
         download_mock = mock.MagicMock()
 
-        with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.write_content', write_content):
-            with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.write_metadata', write_metadata):
-                with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.download_url_content_to_file', download_mock):
-                    with mock.patch('nikola.plugins.command_import_wordpress.os.makedirs'):
+        with mock.patch('nikola.plugins.command.import_wordpress.CommandImportWordpress.write_content', write_content):
+            with mock.patch('nikola.plugins.command.import_wordpress.CommandImportWordpress.write_metadata', write_metadata):
+                with mock.patch('nikola.plugins.command.import_wordpress.CommandImportWordpress.download_url_content_to_file', download_mock):
+                    with mock.patch('nikola.plugins.command.import_wordpress.os.makedirs'):
                         self.import_command.import_posts(channel)
 
         self.assertTrue(download_mock.called)
+        qpath = 'new_site/files/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png'
         download_mock.assert_any_call(
             'http://some.blog/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png',
-            'new_site/files/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png')
+            qpath.replace('/', os.sep))
 
         self.assertTrue(write_metadata.called)
         write_metadata.assert_any_call(
-            'new_site/stories/kontakt.meta', 'Kontakt',
+            'new_site/stories/kontakt.meta'.replace('/', os.sep), 'Kontakt',
             'kontakt', '2009-07-16 20:20:32', None, [])
 
         self.assertTrue(write_content.called)
-        write_content.assert_any_call('new_site/posts/200704hoert.wp',
+        write_content.assert_any_call('new_site/posts/200704hoert.wp'.replace('/', os.sep),
                                       """An image.
 
 <img class="size-full wp-image-16" title="caption test" src="http://some.blog/wp-content/uploads/2009/07/caption_test.jpg" alt="caption test" width="739" height="517" />
@@ -179,11 +187,11 @@ The end.
 """)
 
         write_content.assert_any_call(
-            'new_site/posts/200807arzt-und-pfusch-s-i-c-k.wp',
+            'new_site/posts/200807arzt-und-pfusch-s-i-c-k.wp'.replace('/', os.sep),
             '''<img class="size-full wp-image-10 alignright" title="Arzt+Pfusch - S.I.C.K." src="http://some.blog/wp-content/uploads/2008/07/arzt_und_pfusch-sick-cover.png" alt="Arzt+Pfusch - S.I.C.K." width="210" height="209" />Arzt+Pfusch - S.I.C.K.Gerade bin ich \xfcber das Album <em>S.I.C.K</em> von <a title="Arzt+Pfusch" href="http://www.arztpfusch.com/" target="_blank">Arzt+Pfusch</a> gestolpert, welches Arzt+Pfusch zum Download f\xfcr lau anbieten. Das Album steht unter einer Creative Commons <a href="http://creativecommons.org/licenses/by-nc-nd/3.0/de/">BY-NC-ND</a>-Lizenz.
 Die Ladung <em>noisebmstupidevildustrial</em> gibts als MP3s mit <a href="http://www.archive.org/download/dmp005/dmp005_64kb_mp3.zip">64kbps</a> und <a href="http://www.archive.org/download/dmp005/dmp005_vbr_mp3.zip">VBR</a>, als Ogg Vorbis und als FLAC (letztere <a href="http://www.archive.org/details/dmp005">hier</a>). <a href="http://www.archive.org/download/dmp005/dmp005-artwork.zip">Artwork</a> und <a href="http://www.archive.org/download/dmp005/dmp005-lyrics.txt">Lyrics</a> gibts nochmal einzeln zum Download.''')
         write_content.assert_any_call(
-            'new_site/stories/kontakt.wp', """<h1>Datenschutz</h1>
+            'new_site/stories/kontakt.wp'.replace('/', os.sep), """<h1>Datenschutz</h1>
 Ich erhebe und speichere automatisch in meine Server Log Files Informationen, die dein Browser an mich \xfcbermittelt. Dies sind:
 
 <ul>
@@ -209,15 +217,36 @@ Diese Daten sind f\xfcr mich nicht bestimmten Personen zuordenbar. Eine Zusammen
             self.import_command.url_map['http://some.blog/kontakt/'],
             'http://some.blog/stories/kontakt.html')
 
+        image_thumbnails = [
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-64x64.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-300x175.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-36x36.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-24x24.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-96x96.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-96x96.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-48x48.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-96x96.png',
+            'http://some.blog/wp-content/uploads/2012/12/2012-12-19-1355925145_1024x600_scrot-150x150.png'
+        ]
+
+        for link in image_thumbnails:
+            self.assertTrue(
+                link in self.module.links,
+                'No link to "{0}" found in {map}.'.format(
+                    link,
+                    map=self.module.links
+                )
+            )
+
     def test_transforming_content(self):
         """Applying markup conversions to content."""
         transform_sourcecode = mock.MagicMock()
         transform_caption = mock.MagicMock()
         transform_newlines = mock.MagicMock()
 
-        with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.transform_sourcecode', transform_sourcecode):
-            with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.transform_caption', transform_caption):
-                with mock.patch('nikola.plugins.command_import_wordpress.CommandImportWordpress.transform_multiple_newlines', transform_newlines):
+        with mock.patch('nikola.plugins.command.import_wordpress.CommandImportWordpress.transform_sourcecode', transform_sourcecode):
+            with mock.patch('nikola.plugins.command.import_wordpress.CommandImportWordpress.transform_caption', transform_caption):
+                with mock.patch('nikola.plugins.command.import_wordpress.CommandImportWordpress.transform_multiple_newlines', transform_newlines):
                     self.import_command.transform_content("random content")
 
         self.assertTrue(transform_sourcecode.called)
@@ -327,7 +356,7 @@ newlines.
         config_path_with_timestamp = self.import_command.get_configuration_output_path(
         )
         self.assertNotEqual(default_config_path, config_path_with_timestamp)
-        self.assertTrue('wordpress_import' in config_path_with_timestamp)
+        self.assertTrue(self.import_command.name in config_path_with_timestamp)
 
     def test_write_content_does_not_detroy_text(self):
         content = b"""<h1>Installation</h1>
@@ -338,13 +367,28 @@ There are many plugins.
 <h2>Violations</h2>
 You can use the <a title="Jenkins Plugin: Violations" href="https://wiki.jenkins-ci.org/display/JENKINS/Violations">Violations</a> plugin."""
         open_mock = mock.mock_open()
-        with mock.patch('nikola.plugins.command_import_wordpress.open', open_mock, create=True):
+        with mock.patch('nikola.plugins.basic_import.open', open_mock, create=True):
             self.import_command.write_content('some_file', content)
 
         open_mock.assert_called_once_with('some_file', 'wb+')
         call_context = open_mock()
         call_context.write.assert_called_once_with(
             content.join([b'<html><body>', b'</body></html>']))
+
+    def test_configure_redirections(self):
+        """
+        Testing the configuration of the redirections.
+
+        We need to make sure that we have valid sources and target links.
+        """
+        url_map = {
+            '/somewhere/else': 'http://foo.bar/posts/somewhereelse.html'
+        }
+
+        redirections = self.import_command.configure_redirections(url_map)
+
+        self.assertEqual(1, len(redirections))
+        self.assertTrue(('somewhere/else/index.html', '/posts/somewhereelse.html') in redirections)
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,12 +26,13 @@ def main(import_directory=None):
     test_directory = os.path.dirname(__file__)
     package_directory = os.path.abspath(os.path.join(test_directory, '..'))
 
-    os.system('echo "y" | pip uninstall Nikola')
+    os.system('pip uninstall -y Nikola')
     os.system('pip install %s' % package_directory)
     os.system('nikola')
     import_file = os.path.join(test_directory, 'wordpress_export_example.xml')
     os.system(
-        'nikola import_wordpress -f %s -o %s' % (import_file, import_directory))
+        'nikola import_wordpress -o {folder} {file}'.format(file=import_file,
+                                                            folder=import_directory))
 
     assert os.path.exists(
         import_directory), "The directory %s should be existing."

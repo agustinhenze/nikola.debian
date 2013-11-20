@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 import time
@@ -72,7 +71,7 @@ SIDEBAR_LINKS = {
 # The wildcard is used to generate a list of reSt source files
 # (whatever/thing.txt).
 # That fragment must have an associated metadata file (whatever/thing.meta),
-# and opcionally translated files (example for spanish, with code "es"):
+# and optionally translated files (example for spanish, with code "es"):
 #     whatever/thing.txt.es and whatever/thing.meta.es
 #
 # From those files, a set of HTML fragment files will be generated:
@@ -106,7 +105,7 @@ post_pages = (
 # 'rest' is reStructuredText
 # 'markdown' is MarkDown
 # 'html' assumes the file is html and just copies it
-post_compilers = {
+COMPILERS = {
     "rest": ('.txt', '.rst'),
     "markdown": ('.md', '.mdown', '.markdown'),
     "textile": ('.textile',),
@@ -340,9 +339,13 @@ CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
 # external resources.
 # USE_CDN = False
 
-# Google analytics or whatever else you use. Added to the bottom of <body>
+# Google analytics script or whatever else you use. Added to the bottom of <body>
 # in the default template (base.tmpl).
 # ANALYTICS = ""
+
+# HTML snippet that will be added at the bottom of body of <body>
+# in the default template (base.tmpl).
+# SOCIAL_BUTTONS_CODE = ""
 
 # The possibility to extract metadata from the filename by using a
 # regular expression.
