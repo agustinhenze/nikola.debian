@@ -1,4 +1,6 @@
-# Copyright (c) 2012 Roberto Alsina y otros.
+# -*- coding: utf-8 -*-
+
+# Copyright © 2012-2013 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -22,16 +24,23 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+from __future__ import absolute_import
+
 __all__ = [
     'Command',
     'LateTask',
     'PageCompiler',
+    'RestExtension',
     'Task',
-    'TemplateSystem'
+    'TaskMultiplier',
+    'TemplateSystem',
+    'SignalHandler'
 ]
 
 from yapsy.IPlugin import IPlugin
 from doit.cmd_base import Command as DoitCommand
+
+from .utils import LOGGER, first_line
 
 
 class BasePlugin(IPlugin):
@@ -63,7 +72,7 @@ class Command(BasePlugin, DoitCommand):
         """Check if the command can run in the current environment,
         fail if needed, or call _execute."""
         if self.needs_config and not self.site.configured:
-            print("This command needs to run inside an existing Nikola site.")
+            LOGGER.error("This command needs to run inside an existing Nikola site.")
             return False
         self._execute(options, args)
 
@@ -96,7 +105,7 @@ DoitCommand.help = help
 
 
 class BaseTask(BasePlugin):
-    """PLugins of this type are task generators."""
+    """Plugins of this type are task generators."""
 
     name = "dummy_task"
 
@@ -108,9 +117,17 @@ class BaseTask(BasePlugin):
         """Task generator."""
         raise NotImplementedError()
 
+    def group_task(self):
+        """dict for group task"""
+        return {
+            'basename': self.name,
+            'name': None,
+            'doc': first_line(self.__doc__),
+        }
+
 
 class Task(BaseTask):
-    """PLugins of this type are task generators."""
+    """Plugins of this type are task generators."""
 
 
 class LateTask(BaseTask):
@@ -119,7 +136,7 @@ class LateTask(BaseTask):
     name = "dummy_latetask"
 
 
-class TemplateSystem(object):
+class TemplateSystem(BasePlugin):
     """Plugins of this type wrap templating systems."""
 
     name = "dummy templates"
@@ -132,7 +149,7 @@ class TemplateSystem(object):
         """Returns filenames which are dependencies for a template."""
         raise NotImplementedError()
 
-    def render_template(name, output_name, context):
+    def render_template(self, template_name, output_name, context):
         """Renders template to a file using context.
 
         This must save the data to output_name *and* return it
@@ -140,8 +157,24 @@ class TemplateSystem(object):
         """
         raise NotImplementedError()
 
+    def render_template_to_string(self, template, context):
+        """ Renders template to a string using context. """
 
-class PageCompiler(object):
+        raise NotImplementedError()
+
+
+class TaskMultiplier(BasePlugin):
+    """Plugins that take a task and return *more* tasks."""
+
+    name = "dummy multiplier"
+
+    def process(self, task):
+        """Examine task and create more tasks.
+        Returns extra tasks only."""
+        return []
+
+
+class PageCompiler(BasePlugin):
     """Plugins that compile text files into HTML."""
 
     name = "dummy compiler"
@@ -154,10 +187,105 @@ class PageCompiler(object):
         'description': '',
     }
 
-    def compile_html(self, source, dest):
+    def compile_html(self, source, dest, is_two_file=False):
         """Compile the source, save it on dest."""
         raise NotImplementedError()
 
     def create_post(self, path, onefile=False, **kw):
         """Create post file with optional metadata."""
+        raise NotImplementedError()
+
+    def extension(self):
+        """The preferred extension for the output of this compiler."""
+        return ".html"
+
+
+class RestExtension(BasePlugin):
+    name = "dummy_rest_extension"
+
+
+class SignalHandler(BasePlugin):
+    name = "dummy_signal_handler"
+
+
+class Importer(Command):
+    """Basic structure for importing data into Nikola.
+
+    The flow is:
+
+    read_data
+    preprocess_data
+    parse_data
+    generate_base_site
+        populate_context
+        create_config
+    filter_data
+    process_data
+
+    process_data can branch into:
+
+    import_story (may use import_file and save_post)
+    import_post (may use import_file and save_post)
+    import_attachment (may use import_file)
+
+    Finally:
+
+    write_urlmap
+    """
+
+    name = "dummy_importer"
+
+    def _execute(self, options={}, args=[]):
+        """Import the data into Nikola."""
+        raise NotImplementedError()
+
+    def generate_base_site(self, path):
+        """Create the base site."""
+        raise NotImplementedError()
+
+    def populate_context(self):
+        """Use data to fill context for configuration."""
+        raise NotImplementedError()
+
+    def create_config(self):
+        """Use the context to create configuration."""
+        raise NotImplementedError()
+
+    def read_data(self, source):
+        """Fetch data into self.data"""
+        raise NotImplementedError()
+
+    def preprocess_data(self):
+        """Modify data if needed."""
+        pass
+
+    def parse_data(self):
+        """Convert self.data into self.items"""
+        raise NotImplementedError()
+
+    def filter_data(self):
+        """Remove data that's not to be imported."""
+        pass
+
+    def process_data(self):
+        """Go through self.items and save them."""
+
+    def import_story(self):
+        """Create a story."""
+        raise NotImplementedError()
+
+    def import_post(self):
+        """Create a post."""
+        raise NotImplementedError()
+
+    def import_attachment(self):
+        """Create an attachment."""
+        raise NotImplementedError()
+
+    def import_file(self):
+        """Import a file."""
+        raise NotImplementedError()
+
+    def save_post(self):
+        """Save a post to disk."""
         raise NotImplementedError()

@@ -1,25 +1,37 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import unicode_literals
-import unittest
+from __future__ import unicode_literals, absolute_import
+from collections import defaultdict
+from io import StringIO
 import os
 import re
-from io import StringIO
+import unittest
 
 import mock
 
-from context import nikola
+from .context import nikola  # NOQA
 from lxml import etree
+from .base import LocaleSupportInTesting
+
+
+fake_conf = defaultdict(str)
+fake_conf['TIMEZONE'] = None
+fake_conf['DEFAULT_LANG'] = 'en'
+fake_conf['TRANSLATIONS'] = {'en': ''}
+fake_conf['BASE_URL'] = 'http://some.blog/'
 
 
 class RSSFeedTest(unittest.TestCase):
     def setUp(self):
+        LocaleSupportInTesting.initialize_locales_for_testing('unilingual')
+
         self.blog_url = "http://some.blog"
 
         with mock.patch('nikola.post.get_meta',
                         mock.Mock(return_value=({'title': 'post title',
                                                  'slug': 'awesome_article',
                                                  'date': '2012-10-01 22:41',
+                                                 'author': None,
                                                  'tags': 'tags', 'link':
                                                  'link', 'description':
                                                  'description'}))):
@@ -29,14 +41,12 @@ class RSSFeedTest(unittest.TestCase):
                                 mock.Mock(return_value='some long text')):
 
                     example_post = nikola.nikola.Post('source.file',
-                                                      'cache',
+                                                      fake_conf,
                                                       'blog_folder',
                                                       True,
                                                       {'en': ''},
-                                                      'en',
-                                                      self.blog_url,
-                                                      'unused message.',
-                                                      'post.tmpl')
+                                                      'post.tmpl',
+                                                      lambda *a: None)
 
                     opener_mock = mock.mock_open()
 

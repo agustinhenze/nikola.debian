@@ -6,7 +6,14 @@ import tempfile
 import unittest
 from os import path
 
-from nikola.plugins.compile_markdown import CompileMarkdown
+from nikola.plugins.compile.markdown import CompileMarkdown
+
+
+class FakeSite(object):
+    config = {
+        "MARKDOWN_EXTENSIONS": ['fenced_code', 'codehilite'],
+        "LOGGING_HANDLERS": {'stderr': {'loglevel': 'WARNING', 'bubble': True}}
+    }
 
 
 class CompileMarkdownTests(unittest.TestCase):
@@ -16,6 +23,7 @@ class CompileMarkdownTests(unittest.TestCase):
         self.output_path = path.join(self.tmp_dir, 'output.html')
 
         self.compiler = CompileMarkdown()
+        self.compiler.set_site(FakeSite())
 
     def compile(self, input_string):
         with codecs.open(self.input_path, "w+", "utf8") as input_file:
