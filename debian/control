@@ -1,22 +1,25 @@
 Source: nikola
 Section: python
 Priority: optional
-Maintainer: Agustin Henze <tin@sluc.org.ar>
+Maintainer: Agustin Henze <tin@debian.org>
 Uploaders: Ulises Vitulli <dererk@debian.org>
-Build-Depends: debhelper (>= 9)
-Build-Depends-Indep: python-all,
+Build-Depends:
+ debhelper (>= 9),
+ python-all,
  python-support (>= 1),
  python-setuptools,
  python-docutils,
-Standards-Version: 3.9.4
+Standards-Version: 3.9.5
 X-Python-Version: >= 2.7
-Homepage: http://nikola.ralsina.com.ar/
+Homepage: http://getnikola.com/
 Vcs-Git: git://anonscm.debian.org/collab-maint/nikola.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/nikola.git
 
 Package: nikola
 Architecture: all
-Depends: ${python:Depends}, ${misc:Depends},
+Depends:
+ ${python:Depends},
+ ${misc:Depends},
  python-doit,
  python-pygments,
  python-imaging,
@@ -26,12 +29,28 @@ Depends: ${python:Depends}, ${misc:Depends},
  python-lxml,
  python-yapsy,
  python-pyrss2gen,
+ python-tz,
  libjs-jquery,
  libjs-jquery-colorbox,
  libjs-twitter-bootstrap,
- libjs-jquery-slides,
-Recommends: python-webassets, python-requests
-Suggests: python-jinja2
+ libjs-imagesloaded,
+Recommends:
+ python-webassets,
+ python-requests,
+ python-typogrify,
+ python-livereload,
+Suggests:
+ python-jinja2,
+ python-feedparser,
+ ipython,
+ bpython,
+ python-markdown,
+ python-misaka,
+ pandoc,
+ python-textile,
+ python-creoleparser,
+ txt2tags,
+ node-less,
 Description: simple yet powerful and flexible static website and blog generator
  Nikola is a static site and blog generator. Feed information to it on one
  side and get a ready-to-deploy website on the other.

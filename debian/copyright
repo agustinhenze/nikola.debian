@@ -1,50 +1,10 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Nikola
 Upstream-Contact: Roberto Alsina <ralsina@kde.org>
-Source: http://nikola.ralsina.com.ar/
-
-Files: nikola/data/themes/default/assets/js/bootstrap.js
- nikola/data/themes/default/assets/css/bootstrap.css
- nikola/data/themes/default/assets/css/bootstrap-responsive.css
-Copyright: 2012 Twitter, Inc.
-License: Apache-2.0
- Licensed under the Apache License, Version 2.0 (the "License");
- .
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
- .
- On Debian systems, the complete text of the Apache-2.0
- License can be found in `/usr/share/common-licenses/Apache-2.0'.
-
-Files: nikola/rc4.py
-Copyright: (C) 2012 Bo Zhu http://about.bozhu.me
-License: MIT/X11
-
-Files: nikola/plugins/compile_misaka*
-Copyright: (c) 2013 Chris Lee
-License: MIT/X11
-
-Files: nikola/plugins/compile_markdown/mdx_podcast.py
-Copyright: (c) 2013 Michael Rabbitt, Roberto Alsina
-License: MIT/X11
-
-Files: nikola/plugins/compile_markdown/mdx_gist.py
-Copyright: (c) 2013 Michael Rabbitt
-License: MIT/X11
-
-Files: nikola/plugins/compile_ipynb*
-Copyright: (c) 2013 Damian Avila
-License: MIT/X11
-
-Files: nikola/plugins/task_localsearch/files/*
-Copyright: (c) 2013 Tipue
-License: MIT/X11
+Source: https://github.com/getnikola/nikola
 
 Files: *
-Copyright: (c) 2012 Roberto Alsina y otros.
+Copyright: (c) 2012-2013 Roberto Alsina y otros.
 License: MIT/X11
 
 License: MIT/X11
@@ -66,8 +26,32 @@ License: MIT/X11
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
 
+Files: nikola/rc4.py
+Copyright: (C) 2012 Bo Zhu http://about.bozhu.me
+License: MIT/X11
+
+Files: nikola/plugins/compile/misaka.py
+Copyright: (c) 2013 Chris Lee
+License: MIT/X11
+
+Files: nikola/plugins/compile/markdown/mdx_podcast.py
+Copyright: (c) 2013 Michael Rabbitt, Roberto Alsina
+License: MIT/X11
+
+Files: nikola/plugins/compile_markdown/mdx_gist.py
+Copyright: (c) 2013 Michael Rabbitt
+License: MIT/X11
+
+Files: nikola/plugins/compile/ipynb*
+Copyright: (c) 2013 Damian Avila
+License: MIT/X11
+
+Files: nikola/plugins/task_localsearch/files/*
+Copyright: (c) 2013 Tipue
+License: MIT/X11
+
 Files: debian/*
-Copyright: (C) 2012-2013 Agustin Henze <tin@sluc.org.ar>
+Copyright: (C) 2012-2013 Agustin Henze <tin@debian.org>
 License: GPL-3
 
 License: GPL-3

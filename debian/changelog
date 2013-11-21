@@ -1,3 +1,13 @@
+nikola (6.2.1-1) unstable; urgency=low
+
+  * Imported Upstream version 6.2.1 (Closes: #722177)
+  * Updating debian/watch file to the new url of the project
+  * Add get-orig-source target
+  * Change the default theme bootstrap3 by bootstrap
+  * Update dependencies, recommendations and suggestions
+
+ -- Agustin Henze <tin@debian.org>  Mon, 18 Nov 2013 19:26:32 -0300
+
 nikola (5.4.4-1) unstable; urgency=low
 
   [ Agustin Henze ]
