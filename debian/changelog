@@ -1,3 +1,13 @@
+nikola (6.3.0-1) unstable; urgency=medium
+
+  * New upstream release version 6.3.0
+  * Add the awesome patch by Chris "kwpolska" Warrick (add install_bs3
+    command) (Closes: #734613)
+  * Add bash and zsh completion
+  * Use pybuild as buildsystem
+
+ -- Agustin Henze <tin@debian.org>  Fri, 28 Feb 2014 11:33:42 -0300
+
 nikola (6.2.1-1) unstable; urgency=low
 
   * Imported Upstream version 6.2.1 (Closes: #722177)
