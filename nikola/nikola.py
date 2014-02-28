@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -43,7 +43,9 @@ except ImportError:
     pyphen = None
 
 import logging
-if os.getenv('NIKOLA_DEBUG'):
+from . import DEBUG
+
+if DEBUG:
     logging.basicConfig(level=logging.DEBUG)
 else:
     logging.basicConfig(level=logging.ERROR)
@@ -105,6 +107,7 @@ class Nikola(object):
         self._scanned = False
         self._template_system = None
         self._THEMES = None
+        self.debug = DEBUG
         self.loghandlers = []
         if not config:
             self.configured = False
@@ -143,6 +146,7 @@ class Nikola(object):
             'DEFAULT_LANG': "en",
             'DEPLOY_COMMANDS': [],
             'DISABLED_PLUGINS': (),
+            'EXTRA_PLUGINS_DIRS': [],
             'COMMENT_SYSTEM_ID': 'nikolademo',
             'ENABLED_EXTRAS': (),
             'EXTRA_HEAD_DATA': '',
@@ -165,8 +169,10 @@ class Nikola(object):
             'INDEX_TEASERS': False,
             'INDEXES_TITLE': "",
             'INDEXES_PAGES': "",
+            'INDEXES_PAGES_MAIN': False,
             'INDEX_PATH': '',
             'IPYNB_CONFIG': {},
+            'LESS_COMPILER': 'lessc',
             'LICENSE': '',
             'LINK_CHECK_WHITELIST': [],
             'LISTINGS_FOLDER': 'listings',
@@ -185,6 +191,7 @@ class Nikola(object):
             'RSS_LINK': None,
             'RSS_PATH': '',
             'RSS_TEASERS': True,
+            'SASS_COMPILER': 'sass',
             'SEARCH_FORM': '',
             'SLUG_TAG_PATH': True,
             'SOCIAL_BUTTONS_CODE': SOCIAL_BUTTONS_CODE,
@@ -198,16 +205,19 @@ class Nikola(object):
             'THEME_REVEAL_CONFIG_SUBTHEME': 'sky',
             'THEME_REVEAL_CONFIG_TRANSITION': 'cube',
             'THUMBNAIL_SIZE': 180,
+            'URL_TYPE': 'rel_path',
             'USE_BUNDLES': True,
             'USE_CDN': False,
             'USE_FILENAME_AS_TITLE': True,
-            'TIMEZONE': None,
+            'TIMEZONE': 'UTC',
             'DEPLOY_DRAFTS': True,
             'DEPLOY_FUTURE': False,
             'SCHEDULE_ALL': False,
             'SCHEDULE_RULE': '',
             'SCHEDULE_FORCE_TODAY': False,
             'LOGGING_HANDLERS': {'stderr': {'loglevel': 'WARNING', 'bubble': True}},
+            'DEMOTE_HEADERS': 1,
+            'TRANSLATIONS_PATTERN': '{path}.{ext}.{lang}',
         }
 
         self.config.update(config)
@@ -337,16 +347,18 @@ class Nikola(object):
             "SignalHandler": SignalHandler,
         })
         self.plugin_manager.setPluginInfoExtension('plugin')
+        extra_plugins_dirs = self.config['EXTRA_PLUGINS_DIRS']
         if sys.version_info[0] == 3:
             places = [
                 os.path.join(os.path.dirname(__file__), 'plugins'),
                 os.path.join(os.getcwd(), 'plugins'),
-            ]
+            ] + [path for path in extra_plugins_dirs if path]
         else:
             places = [
                 os.path.join(os.path.dirname(__file__), utils.sys_encode('plugins')),
                 os.path.join(os.getcwd(), utils.sys_encode('plugins')),
-            ]
+            ] + [utils.sys_encode(path) for path in extra_plugins_dirs if path]
+
         self.plugin_manager.setPluginPlaces(places)
         self.plugin_manager.collectPlugins()
 
@@ -590,6 +602,8 @@ class Nikola(object):
         local_context["template_name"] = template_name
         local_context.update(self.GLOBAL_CONTEXT)
         local_context.update(context)
+        # string, arguments
+        local_context["formatmsg"] = lambda s, *a: s % a
         data = self.template_system.render_template(
             template_name, None, local_context)
 
@@ -617,14 +631,35 @@ class Nikola(object):
                 else:
                     return dst
 
+            # Refuse to replace links that consist of a fragment only
+            if ((not dst_url.scheme) and (not dst_url.netloc) and
+                    (not dst_url.path) and (not dst_url.params) and
+                    (not dst_url.query) and dst_url.fragment):
+                return dst
+
             # Normalize
             dst = urljoin(src, dst)
+
             # Avoid empty links.
             if src == dst:
-                return "#"
+                if self.config.get('URL_TYPE') == 'absolute':
+                    dst = urljoin(self.config['BASE_URL'], dst)
+                    return dst
+                elif self.config.get('URL_TYPE') == 'full_path':
+                    return dst
+                else:
+                    return "#"
+
             # Check that link can be made relative, otherwise return dest
             parsed_dst = urlsplit(dst)
             if parsed_src[:2] != parsed_dst[:2]:
+                if self.config.get('URL_TYPE') == 'absolute':
+                    dst = urljoin(self.config['BASE_URL'], dst)
+                return dst
+
+            if self.config.get('URL_TYPE') in ('full_path', 'absolute'):
+                if self.config.get('URL_TYPE') == 'absolute':
+                    dst = urljoin(self.config['BASE_URL'], dst)
                 return dst
 
             # Now both paths are on the same site and absolute
@@ -733,7 +768,7 @@ class Nikola(object):
         # Normalize
         dst = urljoin(self.config['BASE_URL'], dst)
 
-        return urlparse(dst).path
+        return urlparse(dst).geturl()
 
     def rel_link(self, src, dst):
         # Normalize
@@ -825,13 +860,16 @@ class Nikola(object):
                 full_list = glob.glob(dir_glob)
                 # Now let's look for things that are not in default_lang
                 for lang in self.config['TRANSLATIONS'].keys():
-                    lang_glob = dir_glob + "." + lang
+                    lang_glob = utils.get_translation_candidate(self.config, dir_glob, lang)
                     translated_list = glob.glob(lang_glob)
-                    for fname in translated_list:
-                        orig_name = os.path.splitext(fname)[0]
-                        if orig_name in full_list:
-                            continue
-                        full_list.append(orig_name)
+                    # dir_glob could have put it already in full_list
+                    full_list = list(set(full_list + translated_list))
+                    # Eliminate translations from full_list (even from dir_glob)
+                    for fname in full_list:
+                        translation = utils.get_translation_candidate(self.config, fname, lang)
+                        if translation in full_list:
+                            full_list.remove(translation)
+
                 # We eliminate from the list the files inside any .ipynb folder
                 full_list = [p for p in full_list
                              if not any([x.startswith('.')
@@ -849,7 +887,7 @@ class Nikola(object):
                         use_in_feeds,
                         self.MESSAGES,
                         template_name,
-                        self.get_compiler(base_path).compile_html
+                        self.get_compiler(base_path)
                     )
                     self.global_data[post.source_path] = post
                     if post.use_in_feeds:
@@ -873,8 +911,6 @@ class Nikola(object):
                         self.posts_per_category[post.meta('category')].append(post.source_path)
                     else:
                         self.pages.append(post)
-                    if self.config['OLD_THEME_SUPPORT']:
-                        post._add_old_metadata()
                     self.post_per_file[post.destination_path(lang=lang)] = post
                     self.post_per_file[post.destination_path(lang=lang, extension=post.source_ext())] = post
 

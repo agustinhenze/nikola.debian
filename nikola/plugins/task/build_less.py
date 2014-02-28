@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -29,6 +29,7 @@ from __future__ import unicode_literals
 import codecs
 import glob
 import os
+import sys
 import subprocess
 
 from nikola.plugin_categories import Task
@@ -41,10 +42,10 @@ class BuildLess(Task):
     name = "build_less"
     sources_folder = "less"
     sources_ext = ".less"
-    compiler_name = "lessc"
 
     def gen_tasks(self):
         """Generate CSS out of LESS sources."""
+        self.compiler_name = self.site.config['LESS_COMPILER']
 
         kw = {
             'cache_folder': self.site.config['CACHE_FOLDER'],
@@ -79,7 +80,13 @@ class BuildLess(Task):
         def compile_target(target, dst):
             utils.makedirs(dst_dir)
             src = os.path.join(kw['cache_folder'], self.sources_folder, target)
-            compiled = subprocess.check_output([self.compiler_name, src])
+            run_in_shell = sys.platform == 'win32'
+            try:
+                compiled = subprocess.check_output([self.compiler_name, src], shell=run_in_shell)
+            except OSError:
+                utils.req_missing([self.compiler_name],
+                                  'build LESS files (and use this theme)',
+                                  False, False)
             with open(dst, "wb+") as outf:
                 outf.write(compiled)
 

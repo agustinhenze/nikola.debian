@@ -3,15 +3,18 @@ from __future__ import unicode_literals
 
 MESSAGES = {
     "Also available in": "Ook beschikbaar in",
+    "Also available in:": "Ook beschikbaar in:",
     "Archive": "Archief",
     "Categories": "Categorieën",
     "LANGUAGE": "Nederlands",
+    "More posts about %s": "Meer berichten over %s",
     "More posts about": "Meer berichten over",
     "Newer posts": "Nieuwere berichten",
     "Next post": "Volgend bericht",
     "Older posts": "Oudere berichten",
     "Original site": "Originele site",
     "Posted": "Geplaatst",
+    "Posted:": "Geplaatst:",
     "Posts about %s": "Berichten over %s",
     "Posts for year %s": "Berichten voor het jaar %s",
     "Posts for {month} {year}": "Berichten voor {month} {year}",
@@ -21,5 +24,6 @@ MESSAGES = {
     "Source": "Bron",
     "Tags and Categories": "Tags en Categorieën",
     "Tags": "Tags",
-    "old posts page %d": "oude berichten pagina %d",
+    "old posts, page %d": "oude berichten, pagina %d",
+    "page %d": "pagina %d",
 }

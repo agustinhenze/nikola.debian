@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -110,8 +110,14 @@ class RenderTags(Task):
         # Tag cloud json file
         tag_cloud_data = {}
         for tag, posts in self.site.posts_per_tag.items():
+            tag_posts = dict(posts=[{'title': post.meta[post.default_lang]['title'],
+                                     'date': post.date.strftime('%m/%d/%Y'),
+                                     'isodate': post.date.isoformat(),
+                                     'url': post.base_path.replace('cache', '')}
+                                    for post in reversed(sorted(self.site.timeline, key=lambda post: post.date))
+                                    if tag in post.alltags])
             tag_cloud_data[tag] = [len(posts), self.site.link(
-                'tag', tag, self.site.config['DEFAULT_LANG'])]
+                'tag', tag, self.site.config['DEFAULT_LANG']), tag_posts]
         output_name = os.path.join(kw['output_folder'],
                                    'assets', 'js', 'tag_cloud_data.json')
 
@@ -124,6 +130,7 @@ class RenderTags(Task):
             'basename': str(self.name),
             'name': str(output_name)
         }
+
         task['uptodate'] = [utils.config_changed(tag_cloud_data)]
         task['targets'] = [output_name]
         task['actions'] = [(write_tag_data, [tag_cloud_data])]
@@ -189,7 +196,7 @@ class RenderTags(Task):
             return name
 
         # FIXME: deduplicate this with render_indexes
-        template_name = "index.tmpl"
+        template_name = "tagindex.tmpl"
         # Split in smaller lists
         lists = []
         while post_list:

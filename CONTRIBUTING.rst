@@ -34,7 +34,7 @@ Here are some guidelines about how you can contribute to Nikola:
 * You may want to use the `Tim Pope’s Git commit messages standard
   <http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html>`_.
   It’s not necessary, but if you are doing something big, we recommend
-  describing it there.
+  describing it in the commit message.
 * While working, **rebase instead of merging** (if possible).  We encourage
   using ``git rebase`` instead of ``git merge``.  If you are using
   ``git pull``, please run ``git config pull.rebase true`` to prevent merges
@@ -44,7 +44,9 @@ Here are some guidelines about how you can contribute to Nikola:
 * **Make sure documentation is updated** — at the very least, keep docstrings
   current, and if necessary, update the reStructuredText documentation in ``docs/``.
 * **Add a changelog entry** at the top of ``CHANGES.txt`` mentioning issue number
-  and in the correct Features/Bugfixes section.
+  and in the correct Features/Bugfixes section.  (while creating the new
+  changelog entry, put it in the version that does not exist (consult
+  setup.py) or create a new section)
 * **Run flake8** for style consistency. Use ``flake8 --ignore=E501 .``
 * **Try writing some tests** if possible — again, following existing tests is
   often easiest, and a good way to tell whether the feature you are modifying is

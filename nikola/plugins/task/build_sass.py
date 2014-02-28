@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -29,6 +29,7 @@ from __future__ import unicode_literals
 import codecs
 import glob
 import os
+import sys
 import subprocess
 
 from nikola.plugin_categories import Task
@@ -41,11 +42,11 @@ class BuildSass(Task):
     name = "build_sass"
     sources_folder = "sass"
     sources_ext = (".sass", ".scss")
-    compiler_name = "sass"
 
     def gen_tasks(self):
         """Generate CSS out of Sass sources."""
         self.logger = utils.get_logger('build_sass', self.site.loghandlers)
+        self.compiler_name = self.site.config['SASS_COMPILER']
 
         kw = {
             'cache_folder': self.site.config['CACHE_FOLDER'],
@@ -79,8 +80,14 @@ class BuildSass(Task):
 
         def compile_target(target, dst):
             utils.makedirs(dst_dir)
+            run_in_shell = sys.platform == 'win32'
             src = os.path.join(kw['cache_folder'], self.sources_folder, target)
-            compiled = subprocess.check_output([self.compiler_name, src])
+            try:
+                compiled = subprocess.check_output([self.compiler_name, src], shell=run_in_shell)
+            except OSError:
+                utils.req_missing([self.compiler_name],
+                                  'build Sass files (and use this theme)',
+                                  False, False)
             with open(dst, "wb+") as outf:
                 outf.write(compiled)
 
@@ -99,7 +106,7 @@ class BuildSass(Task):
 
             if base in seennames:
                 self.logger.error(
-                    'Duplicate filenames for SASS compiled files: {0} and '
+                    'Duplicate filenames for Sass compiled files: {0} and '
                     '{1} (both compile to {2})'.format(
                         seennames[base], target, base + ".css"))
             else:

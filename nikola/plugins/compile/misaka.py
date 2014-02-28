@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2013 Chris Lee
+# Copyright © 2013-2014 Chris Lee and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -37,6 +37,11 @@ try:
 except ImportError:
     misaka = None  # NOQA
     nikola_extension = None
+try:
+    from collections import OrderedDict
+except ImportError:
+    OrderedDict = None  # NOQA
+
     gist_extension = None
     podcast_extension = None
 
@@ -48,6 +53,7 @@ class CompileMisaka(PageCompiler):
     """Compile Misaka into HTML."""
 
     name = "misaka"
+    demote_headers = True
 
     def __init__(self, *args, **kwargs):
         super(CompileMisaka, self).__init__(*args, **kwargs)
@@ -68,7 +74,10 @@ class CompileMisaka(PageCompiler):
             out_file.write(output)
 
     def create_post(self, path, onefile=False, **kw):
-        metadata = {}
+        if OrderedDict is not None:
+            metadata = OrderedDict()
+        else:
+            metadata = {}
         metadata.update(self.default_metadata)
         metadata.update(kw)
         makedirs(os.path.dirname(path))

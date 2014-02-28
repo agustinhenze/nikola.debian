@@ -51,6 +51,7 @@ mrabbitt <https://github.com/mrabbitt>
 neilmb <https://github.com/neilmb>
 notfoss <https://github.com/notfoss>
 numshub <https://github.com/numshub>
+onnodb <https://github.com/onnodb>
 pabluk <https://github.com/pabluk>
 paskal <https://github.com/paskal>
 punchagan <https://github.com/punchagan>
@@ -64,3 +65,4 @@ tolusonaike <https://github.com/tolusonaike>
 wimpr1m <https://github.com/wimpr1m>
 yarko <https://github.com/yarko>
 neiesc <https://github.com/neiesc>
+ermeaney <https://github.com/ermeney>

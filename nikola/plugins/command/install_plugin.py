@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -27,6 +27,7 @@
 from __future__ import print_function
 import codecs
 import os
+import sys
 import json
 import shutil
 import subprocess
@@ -145,7 +146,6 @@ class CommandInstallPlugin(Command):
             shutil.copytree(plugin_path, dest_path)
 
         reqpath = os.path.join(dest_path, 'requirements.txt')
-        print(reqpath)
         if os.path.exists(reqpath):
             LOGGER.notice('This plugin has Python dependencies.')
             LOGGER.notice('Installing dependencies with pip...')
@@ -180,6 +180,10 @@ class CommandInstallPlugin(Command):
             LOGGER.notice('This plugin has a sample config file.')
             print('Contents of the conf.py.sample file:\n')
             with codecs.open(confpypath, 'rb', 'utf-8') as fh:
-                print(indent(pygments.highlight(
-                    fh.read(), PythonLexer(), TerminalFormatter()), 4 * ' '))
+                if sys.platform == 'win32':
+                    print(indent(pygments.highlight(
+                        fh.read(), PythonLexer(), TerminalFormatter()),
+                        4 * ' '))
+                else:
+                    print(indent(fh.read(), 4 * ' '))
         return True

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -37,6 +37,11 @@ except ImportError:
     creole = None
 
 from nikola.plugin_categories import PageCompiler
+try:
+    from collections import OrderedDict
+except ImportError:
+    OrderedDict = None  # NOQA
+
 from nikola.utils import makedirs, req_missing
 
 
@@ -44,6 +49,7 @@ class CompileWiki(PageCompiler):
     """Compile CreoleWiki into HTML."""
 
     name = "wiki"
+    demote_headers = True
 
     def compile_html(self, source, dest, is_two_file=True):
         if creole is None:
@@ -57,7 +63,10 @@ class CompileWiki(PageCompiler):
             out_file.write(output)
 
     def create_post(self, path, onefile=False, **kw):
-        metadata = {}
+        if OrderedDict is not None:
+            metadata = OrderedDict()
+        else:
+            metadata = {}
         metadata.update(self.default_metadata)
         metadata.update(kw)
         makedirs(os.path.dirname(path))
