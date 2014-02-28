@@ -19,7 +19,8 @@ override_dh_clean:
 	rm -f _nikola_bash
 
 override_dh_bash-completion:
-	doit gen_completion
+	./scripts/nikola tabcompletion --shell bash --hardcode-tasks > _nikola_bash
+	./scripts/nikola tabcompletion --shell zsh --hardcode-tasks > _nikola_zsh
 	dh_bash-completion
 	cp _nikola_zsh debian/nikola/usr/share/zsh/functions/Completion/Linux/_nikola
 

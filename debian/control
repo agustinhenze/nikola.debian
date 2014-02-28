@@ -5,13 +5,23 @@ Maintainer: Agustin Henze <tin@debian.org>
 Uploaders: Ulises Vitulli <dererk@debian.org>
 Build-Depends:
  debhelper (>= 9),
+ dh-python,
+ bash-completion,
  python-all,
  python-support (>= 1),
  python-setuptools,
  python-docutils,
- dh-python,
+ python-blinker,
+ python-lxml,
+ python-yapsy,
+ python-tz,
+ python-logbook,
  python-doit,
- bash-completion,
+ python-unidecode,
+ python-pyrss2gen,
+ python-mako,
+ python-pygments,
+ python-imaging,
 Standards-Version: 3.9.5
 X-Python-Version: >= 2.7
 Homepage: http://getnikola.com/
