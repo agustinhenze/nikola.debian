@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -85,18 +85,17 @@ class Deploy(Command):
                 sys.exit(e.returncode)
 
         self.logger.notice("Successful deployment")
-        if self.site.config['TIMEZONE'] is not None:
-            tzinfo = pytz.timezone(self.site.config['TIMEZONE'])
-        else:
-            tzinfo = pytz.UTC
+        tzinfo = pytz.timezone(self.site.config['TIMEZONE'])
         try:
             with open(timestamp_path, 'rb') as inf:
                 last_deploy = literal_eval(inf.read().strip())
-                # this might ignore DST
-                last_deploy = last_deploy.replace(tzinfo=tzinfo)
+                if tzinfo:
+                    last_deploy = last_deploy.replace(tzinfo=tzinfo)
                 clean = False
         except Exception:
-            last_deploy = datetime(1970, 1, 1).replace(tzinfo=tzinfo)
+            last_deploy = datetime(1970, 1, 1)
+            if tzinfo:
+                last_deploy = last_deploy.replace(tzinfo=tzinfo)
             clean = True
 
         new_deploy = datetime.now()

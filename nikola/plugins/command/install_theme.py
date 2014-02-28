@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -26,9 +26,10 @@
 
 from __future__ import print_function
 import os
+import sys
+import codecs
 import json
 import shutil
-import codecs
 from io import BytesIO
 
 import pygments
@@ -116,18 +117,22 @@ class CommandInstallTheme(Command):
                 print(theme)
             return True
         else:
-            self.do_install(name, data)
-        # See if the theme's parent is available. If not, install it
-        while True:
-            parent_name = utils.get_parent_theme_name(name)
-            if parent_name is None:
-                break
-            try:
-                utils.get_theme_path(parent_name)
-                break
-            except:  # Not available
-                self.do_install(parent_name, data)
-                name = parent_name
+            # `name` may be modified by the while loop.
+            origname = name
+            installstatus = self.do_install(name, data)
+            # See if the theme's parent is available. If not, install it
+            while True:
+                parent_name = utils.get_parent_theme_name(name)
+                if parent_name is None:
+                    break
+                try:
+                    utils.get_theme_path(parent_name)
+                    break
+                except:  # Not available
+                    self.do_install(parent_name, data)
+                    name = parent_name
+            if installstatus:
+                LOGGER.notice('Remember to set THEME="{0}" in conf.py to use this theme.'.format(origname))
 
     def do_install(self, name, data):
         if name in data:
@@ -155,9 +160,13 @@ class CommandInstallTheme(Command):
             shutil.copytree(theme_path, dest_path)
         confpypath = os.path.join(dest_path, 'conf.py.sample')
         if os.path.exists(confpypath):
-            LOGGER.notice('This plugin has a sample config file.')
+            LOGGER.notice('This plugin has a sample config file.  Integrate it with yours in order to make this theme work!')
             print('Contents of the conf.py.sample file:\n')
             with codecs.open(confpypath, 'rb', 'utf-8') as fh:
-                print(indent(pygments.highlight(
-                    fh.read(), PythonLexer(), TerminalFormatter()), 4 * ' '))
-            return True
+                if sys.platform == 'win32':
+                    print(indent(pygments.highlight(
+                        fh.read(), PythonLexer(), TerminalFormatter()),
+                        4 * ' '))
+                else:
+                    print(indent(fh.read(), 4 * ' '))
+        return True

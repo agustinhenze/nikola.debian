@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -51,6 +51,7 @@ import PyRSS2Gen as rss
 from nikola.plugin_categories import Task
 from nikola import utils
 from nikola.post import Post
+from nikola.utils import req_missing
 
 
 class Galleries(Task):
@@ -76,6 +77,9 @@ class Galleries(Task):
 
     def gen_tasks(self):
         """Render image galleries."""
+
+        if Image is None:
+            req_missing(['pillow'], 'render galleries')
 
         self.logger = utils.get_logger('render_galleries', self.site.loghandlers)
         self.image_ext_list = ['.jpg', '.png', '.jpeg', '.gif', '.svg', '.bmp', '.tiff']
@@ -111,7 +115,7 @@ class Galleries(Task):
         for gallery in self.gallery_list:
 
             # Create subfolder list
-            folder_list = [x.split(os.sep)[-2] for x in
+            folder_list = [(x, x.split(os.sep)[-2]) for x in
                            glob.glob(os.path.join(gallery, '*') + os.sep)]
 
             # Parse index into a post (with translations)
@@ -137,7 +141,7 @@ class Galleries(Task):
                 for task in self.remove_excluded_image(image):
                     yield task
 
-            crumbs = utils.get_crumbs(gallery)
+            crumbs = utils.get_crumbs(gallery, index_folder=self)
 
             # Create index.html for each language
             for lang in self.kw['translations']:
@@ -173,9 +177,20 @@ class Galleries(Task):
                 thumbs = ['.thumbnail'.join(os.path.splitext(p)) for p in image_list]
                 thumbs = [os.path.join(self.kw['output_folder'], t) for t in thumbs]
 
+                folders = []
+
+                # Generate friendly gallery names
+                for path, folder in folder_list:
+                    fpost = self.parse_index(path)
+                    if fpost:
+                        ft = fpost.title(lang) or folder
+                    else:
+                        ft = folder
+                    folders.append((folder, ft))
+
                 ## TODO: in v7 remove images from context, use photo_array
                 context["images"] = list(zip(image_name_list, thumbs, img_titles))
-                context["folders"] = folder_list
+                context["folders"] = folders
                 context["crumbs"] = crumbs
                 context["permalink"] = self.site.link(
                     "gallery", os.path.basename(gallery), lang)
@@ -288,8 +303,14 @@ class Galleries(Task):
                 False,
                 self.site.MESSAGES,
                 'story.tmpl',
-                self.site.get_compiler(index_path).compile_html
+                self.site.get_compiler(index_path)
             )
+            # If this did not exist, galleries without a title in the
+            # index.txt file would be errorneously named `index`
+            # (warning: galleries titled index and filenamed differently
+            #  may break)
+            if post.title == 'index':
+                post.title = os.path.split(gallery)[1]
         else:
             post = None
         return post
@@ -460,7 +481,7 @@ class Galleries(Task):
                 os.path.join(
                     self.site.config['OUTPUT_FOLDER'], img)).st_size
             args = {
-                'title': full_title.split('"')[-2],
+                'title': full_title.split('"')[-2] if full_title else '',
                 'link': make_url(img),
                 'guid': rss.Guid(img, False),
                 'pubDate': self.image_date(img),
@@ -477,7 +498,7 @@ class Galleries(Task):
             description='',
             lastBuildDate=datetime.datetime.now(),
             items=items,
-            generator='nikola',
+            generator='Nikola <http://getnikola.com/>',
             language=lang
         )
         rss_obj.self_url = make_url(permalink)
@@ -523,8 +544,9 @@ class Galleries(Task):
             try:
                 im.thumbnail(size, Image.ANTIALIAS)
                 im.save(dst)
-            except Exception:
-                self.logger.warn("Can't thumbnail {0}, using original image as thumbnail".format(src))
+            except Exception as e:
+                self.logger.warn("Can't thumbnail {0}, using original "
+                                 "image as thumbnail ({1})".format(src, e))
                 utils.copy_file(src, dst)
         else:  # Image is small
             utils.copy_file(src, dst)

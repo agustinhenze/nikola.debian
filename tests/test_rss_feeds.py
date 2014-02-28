@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals, absolute_import
+
+# This code is so you can run the samples without installing the package,
+# and should be before any import touching nikola, in any file under tests/
+import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+
 from collections import defaultdict
 from io import StringIO
 import os
@@ -9,16 +17,21 @@ import unittest
 
 import mock
 
-from .context import nikola  # NOQA
 from lxml import etree
 from .base import LocaleSupportInTesting
 
+import nikola
 
 fake_conf = defaultdict(str)
-fake_conf['TIMEZONE'] = None
+fake_conf['TIMEZONE'] = 'UTC'
 fake_conf['DEFAULT_LANG'] = 'en'
 fake_conf['TRANSLATIONS'] = {'en': ''}
 fake_conf['BASE_URL'] = 'http://some.blog/'
+
+
+class FakeCompiler(object):
+    demote_headers = False
+    compile_html = None
 
 
 class RSSFeedTest(unittest.TestCase):
@@ -46,7 +59,7 @@ class RSSFeedTest(unittest.TestCase):
                                                       True,
                                                       {'en': ''},
                                                       'post.tmpl',
-                                                      lambda *a: None)
+                                                      FakeCompiler())
 
                     opener_mock = mock.mock_open()
 

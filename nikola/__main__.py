@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -38,11 +38,12 @@ from doit.doit_cmd import DoitMain
 from doit.cmd_help import Help as DoitHelp
 from doit.cmd_run import Run as DoitRun
 from doit.cmd_clean import Clean as DoitClean
+from doit.cmd_auto import Auto as DoitAuto
 from logbook import NullHandler
 
 from . import __version__
 from .nikola import Nikola
-from .utils import _reload, sys_decode, LOGGER, STRICT_HANDLER
+from .utils import _reload, sys_decode, get_root_dir, LOGGER, STRICT_HANDLER
 
 
 config = {}
@@ -58,6 +59,11 @@ def main(args):
         nullhandler.push_application()
         quiet = True
     global config
+
+    root = get_root_dir()
+    if root:
+        os.chdir(root)
+
     sys.path.append('')
     try:
         import conf
@@ -127,6 +133,10 @@ class Clean(DoitClean):
                 shutil.rmtree(cache_folder)
         return super(Clean, self).clean_tasks(tasks, dryrun)
 
+# Nikola has its own "auto" commands that uses livereload.
+# Expose original doit "auto" command as "doit_auto".
+DoitAuto.name = 'doit_auto'
+
 
 class NikolaTaskLoader(TaskLoader):
     """custom task loader to get tasks from Nikola instead of dodo.py file"""
@@ -156,7 +166,7 @@ class NikolaTaskLoader(TaskLoader):
 
 class DoitNikola(DoitMain):
     # overwite help command
-    DOIT_CMDS = list(DoitMain.DOIT_CMDS) + [Help, Build, Clean]
+    DOIT_CMDS = list(DoitMain.DOIT_CMDS) + [Help, Build, Clean, DoitAuto]
     TASK_LOADER = NikolaTaskLoader
 
     def __init__(self, nikola, quiet=False):
@@ -181,7 +191,9 @@ class DoitNikola(DoitMain):
             args = ['help']
             # Hide run because Nikola uses build
             sub_cmds.pop('run')
-
+        if len(args) == 0 or any(arg in ["--version", '-V'] for arg in args):
+            cmd_args = ['version']
+            args = ['version']
         if len(args) == 0 or args[0] not in sub_cmds.keys() or \
                 args[0] == 'build':
             # Check for conf.py before launching run
@@ -193,4 +205,7 @@ class DoitNikola(DoitMain):
 
     @staticmethod
     def print_version():
-        print("Nikola version " + __version__)
+        print("Nikola v" + __version__)
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

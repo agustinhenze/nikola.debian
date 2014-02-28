@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -50,6 +50,8 @@ import logbook
 from logbook.more import ExceptionHandler
 import pytz
 
+from . import DEBUG
+
 
 class ApplicationWarning(Exception):
     pass
@@ -67,13 +69,13 @@ def get_logger(name, handlers):
 
 
 STDERR_HANDLER = [logbook.StderrHandler(
-    level=logbook.NOTICE if not os.getenv('NIKOLA_DEBUG') else logbook.DEBUG,
+    level=logbook.NOTICE if not DEBUG else logbook.DEBUG,
     format_string=u'[{record.time:%Y-%m-%dT%H:%M:%SZ}] {record.level_name}: {record.channel}: {record.message}'
 )]
 LOGGER = get_logger('Nikola', STDERR_HANDLER)
 STRICT_HANDLER = ExceptionHandler(ApplicationWarning, level='WARNING')
 
-if os.getenv('NIKOLA_DEBUG'):
+if DEBUG:
     logging.basicConfig(level=logging.DEBUG)
 else:
     logging.basicConfig(level=logging.WARNING)
@@ -101,7 +103,8 @@ def req_missing(names, purpose, python=True, optional=False):
         LOGGER.warn(msg)
     else:
         LOGGER.error(msg)
-        raise Exception('Missing dependencies: {0}'.format(', '.join(names)))
+        LOGGER.error('Exiting due to missing dependencies.')
+        sys.exit(5)
 
     return msg
 
@@ -127,7 +130,8 @@ __all__ = ['get_theme_path', 'get_theme_chain', 'load_messages', 'copy_tree',
            'to_datetime', 'apply_filters', 'config_changed', 'get_crumbs',
            'get_tzname', 'get_asset_path', '_reload', 'unicode_str', 'bytes_str',
            'unichr', 'Functionary', 'LocaleBorg', 'sys_encode', 'sys_decode',
-           'makedirs', 'get_parent_theme_name', 'ExtendedRSS2']
+           'makedirs', 'get_parent_theme_name', 'ExtendedRSS2', 'demote_headers',
+           'get_translation_candidate']
 
 
 ENCODING = sys.getfilesystemencoding() or sys.stdin.encoding
@@ -346,7 +350,7 @@ def generic_rss_renderer(lang, title, link, description, timeline, output_path,
         description=description,
         lastBuildDate=datetime.datetime.now(),
         items=items,
-        generator='nikola',
+        generator='Nikola <http://getnikola.com/>',
         language=lang
     )
     rss_obj.self_url = feed_url
@@ -477,7 +481,7 @@ def to_datetime(value, tzinfo=None):
             dt = datetime.datetime.strptime(value, format)
             if tzinfo is None:
                 return dt
-            # Build a localized time by using a given timezone.
+            # Build a localized time by using a given time zone.
             return tzinfo.localize(dt)
         except ValueError:
             pass
@@ -496,7 +500,7 @@ def to_datetime(value, tzinfo=None):
 
 def get_tzname(dt):
     """
-    Give a datetime value, find the name of the timezone
+    Given a datetime value, find the name of the time zone.
     """
     try:
         from dateutil import tz
@@ -555,8 +559,10 @@ def apply_filters(task, filters):
     return task
 
 
-def get_crumbs(path, is_file=False):
+def get_crumbs(path, is_file=False, index_folder=None):
     """Create proper links for a crumb bar.
+    index_folder is used if you want to use title from index file
+    instead of folder name as breadcrumb text.
 
     >>> crumbs = get_crumbs('galleries')
     >>> len(crumbs)
@@ -595,6 +601,16 @@ def get_crumbs(path, is_file=False):
         for i, crumb in enumerate(crumbs[::-1]):
             _path = '/'.join(['..'] * i) or '#'
             _crumbs.append([_path, crumb])
+    if index_folder and hasattr(index_folder, 'parse_index'):
+        folder = path
+        for i, crumb in enumerate(crumbs[::-1]):
+            if folder[-1] == os.sep:
+                folder = folder[:-1]
+            index_post = index_folder.parse_index(folder)
+            folder = folder.replace(crumb, '')
+            if index_post:
+                crumb = index_post.title() or crumb
+            _crumbs[i][1] = crumb
     return list(reversed(_crumbs))
 
 
@@ -792,3 +808,46 @@ def first_line(doc):
             if striped:
                 return striped
     return ''
+
+
+def demote_headers(doc, level=1):
+    """Demote <hN> elements by one."""
+    if level == 0:
+        return doc
+    elif level > 0:
+        r = range(1, 7 - level)
+    elif level < 0:
+        r = range(1 + level, 7)
+    for i in reversed(r):
+        # html headers go to 6, so we can’t “lower” beneath five
+            elements = doc.xpath('//h' + str(i))
+            for e in elements:
+                e.tag = 'h' + str(i + level)
+
+
+def get_root_dir():
+    """Find root directory of nikola installation by looking for conf.py"""
+    root = os.getcwd()
+
+    while True:
+        if os.path.exists(os.path.join(root, 'conf.py')):
+            return root
+        else:
+            basedir = os.path.split(root)[0]
+            # Top directory, already checked
+            if basedir == root:
+                break
+            root = basedir
+
+    return None
+
+
+def get_translation_candidate(config, path, lang):
+    """
+    Return a possible path where we can find the translated version of some page
+    based on the TRANSLATIONS_PATTERN configuration variable
+    """
+    pattern = config['TRANSLATIONS_PATTERN']
+    path, ext = os.path.splitext(path)
+    ext = ext[1:] if len(ext) > 0 else ext
+    return pattern.format(path=path, lang=lang, ext=ext)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -35,9 +35,15 @@ try:
     import docutils.utils
     import docutils.io
     import docutils.readers.standalone
+    import docutils.writers.html4css1
     has_docutils = True
 except ImportError:
     has_docutils = False
+
+try:
+    from collections import OrderedDict
+except ImportError:
+    OrderedDict = None  # NOQA
 
 from nikola.plugin_categories import PageCompiler
 from nikola.utils import get_logger, makedirs, req_missing
@@ -47,6 +53,7 @@ class CompileRest(PageCompiler):
     """Compile reSt into HTML."""
 
     name = "rest"
+    demote_headers = True
     logger = None
 
     def compile_html(self, source, dest, is_two_file=True):
@@ -71,14 +78,16 @@ class CompileRest(PageCompiler):
                         # author).
                         add_ln = len(spl[0].splitlines()) + 1
 
+                default_template_path = os.path.join(os.path.dirname(__file__), 'template.txt')
                 output, error_level, deps = rst2html(
                     data, settings_overrides={
-                        'initial_header_level': 2,
+                        'initial_header_level': 1,
                         'record_dependencies': True,
                         'stylesheet_path': None,
                         'link_stylesheet': True,
                         'syntax_highlight': 'short',
                         'math_output': 'mathjax',
+                        'template': default_template_path,
                     }, logger=self.logger, l_source=source, l_add_ln=add_ln)
                 out_file.write(output)
             deps_path = dest + '.dep'
@@ -94,7 +103,10 @@ class CompileRest(PageCompiler):
             return False
 
     def create_post(self, path, onefile=False, **kw):
-        metadata = {}
+        if OrderedDict is not None:
+            metadata = OrderedDict()
+        else:
+            metadata = {}
         metadata.update(self.default_metadata)
         metadata.update(kw)
         makedirs(os.path.dirname(path))
@@ -117,6 +129,9 @@ class CompileRest(PageCompiler):
             plugin_info.plugin_object.short_help = plugin_info.description
 
         self.logger = get_logger('compile_rest', site.loghandlers)
+        if not site.debug:
+            self.logger.level = 4
+
         return super(CompileRest, self).set_site(site)
 
 
@@ -139,7 +154,10 @@ def get_observer(settings):
         """
         errormap = {0: 1, 1: 2, 2: 4, 3: 5, 4: 6}
         text = docutils.nodes.Element.astext(msg)
-        out = '[{source}:{line}] {text}'.format(source=settings['source'], line=msg['line'] + settings['add_ln'], text=text)
+        line = msg['line'] + settings['add_ln'] if 'line' in msg else 0
+        out = '[{source}{colon}{line}] {text}'.format(
+            source=settings['source'], colon=(':' if line else ''),
+            line=line, text=text)
         settings['logger'].log(errormap[msg['level']], out)
 
     return observer
@@ -153,6 +171,14 @@ class NikolaReader(docutils.readers.standalone.Reader):
         document.reporter.stream = False
         document.reporter.attach_observer(get_observer(self.l_settings))
         return document
+
+
+def add_node(node, visit_function=None, depart_function=None):
+    docutils.nodes._add_node_class_names([node.__name__])
+    if visit_function:
+        setattr(docutils.writers.html4css1.HTMLTranslator, 'visit_' + node.__name__, visit_function)
+    if depart_function:
+        setattr(docutils.writers.html4css1.HTMLTranslator, 'depart_' + node.__name__, depart_function)
 
 
 def rst2html(source, source_path=None, source_class=docutils.io.StringInput,

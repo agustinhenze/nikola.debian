@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2013 Roberto Alsina and others.
+# Copyright © 2012-2014 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -145,7 +145,7 @@ class CommandImportWordpress(Command, ImportMixin):
         rendered_template = re.sub('# REDIRECTIONS = ', 'REDIRECTIONS = ',
                                    rendered_template)
         if self.timezone:
-            rendered_template = re.sub('# TIMEZONE = \'Europe/Zurich\'',
+            rendered_template = re.sub('# TIMEZONE = \'UTC\'',
                                        'TIMEZONE = \'' + self.timezone + '\'',
                                        rendered_template)
         self.write_configuration(self.get_configuration_output_path(),

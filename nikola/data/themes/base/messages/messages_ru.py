@@ -3,15 +3,18 @@ from __future__ import unicode_literals
 
 MESSAGES = {
     "Also available in": "Также доступно на",
+    "Also available in:": "Также доступно на:",
     "Archive": "Архив",
     "Categories": "Категории",
     "LANGUAGE": "Русский",
+    "More posts about %s": "Больше записей о %s",
     "More posts about": "Больше записей о",
     "Newer posts": "Новые записи",
     "Next post": "Следующая запись",
     "Older posts": "Старые записи",
     "Original site": "Оригинальный сайт",
     "Posted": "Опубликовано",
+    "Posted:": "Опубликовано:",
     "Posts about %s": "Записи о %s",
     "Posts for year %s": "Записи за %s год",
     "Posts for {month} {year}": "Записи за {month} {year}",
@@ -21,5 +24,6 @@ MESSAGES = {
     "Source": "Источник",
     "Tags and Categories": "Тэги и категории",
     "Tags": "Тэги",
-    "old posts page %d": "%d страница со старыми записями",
+    "old posts, page %d": "%d страница со старыми записями",
+    "page %d": "%d страница",
 }
