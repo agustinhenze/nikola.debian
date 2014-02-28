@@ -6,33 +6,36 @@
 
 UVERSION := $(shell dpkg-parsechangelog | sed -n -e's/^Version: \(.*\)-[^-]\+/\1/p' | cut -d ":" -f 2)
 PACKAGE_NAME := $(shell dpkg-parsechangelog | sed -n -e's/^Source: \(.*\)\+/\1/p')
-PYVERS :=  python2.7
+export PYBUILD_NAME=$(PACKAGE_NAME)
 
 %:
-	dh $@ --with python2
+	dh $@ --with python2,bash-completion --buildsystem=pybuild
 
-override_dh_auto_build:
+override_dh_clean:
+	dh_clean
+	rm -rf cache
+	rm -f .doit.db
+	rm -f _nikola_zsh
+	rm -f _nikola_bash
 
-override_dh_auto_clean:
-	dh_auto_clean -- --all
-	rm -rf build
-	rm -rf Nikola.egg-info
+override_dh_bash-completion:
+	doit gen_completion
+	dh_bash-completion
+	cp _nikola_zsh debian/nikola/usr/share/zsh/functions/Completion/Linux/_nikola
 
 override_dh_auto_install:
-	set -ex; \
-	for py in $(PYVERS); do \
-		$$py setup.py install --root debian/nikola \
-				      --install-layout=deb; \
-	done
-	# Documentation
+	dh_auto_install
+	# Remove a copy of mit license
+	find debian/nikola/usr/lib -name "MIT-LICENSE.txt" -type f -exec rm {} +
+	# Drop wrong permission
+	find debian/nikola/usr/lib -perm /a+x -type f -exec chmod -x {} +
+
+override_dh_installdocs:
 	rst2html docs/manual.txt debian/nikola/usr/share/doc/nikola/manual.html
 	rst2html docs/theming.txt debian/nikola/usr/share/doc/nikola/theming.html
 	rst2html docs/creating-a-theme.txt debian/nikola/usr/share/doc/nikola/creating-a-theme.html
 	rst2html docs/extending.txt debian/nikola/usr/share/doc/nikola/extending.html
-	# Drop wrong permission
-	find debian/nikola/usr/lib -perm /a+x -type f -exec chmod -x {} +
-	# Remove a copy of mit license
-	find debian/nikola/usr/lib -name "MIT-LICENSE.txt" -type f -exec rm {} +
+	dh_installdocs
 
 get-orig-source:
 	@if [ ! -d "debian" ] ; then \

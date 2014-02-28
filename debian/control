@@ -9,6 +9,9 @@ Build-Depends:
  python-support (>= 1),
  python-setuptools,
  python-docutils,
+ dh-python,
+ python-doit,
+ bash-completion,
 Standards-Version: 3.9.5
 X-Python-Version: >= 2.7
 Homepage: http://getnikola.com/
