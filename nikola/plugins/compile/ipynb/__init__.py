@@ -44,7 +44,7 @@ from nikola.utils import makedirs, req_missing
 try:
     from collections import OrderedDict
 except ImportError:
-    OrderedDict = None  # NOQA
+    OrderedDict = dict  # NOQA
 
 
 class CompileIPynb(PageCompiler):
@@ -66,11 +66,8 @@ class CompileIPynb(PageCompiler):
             (body, resources) = exportHtml.from_notebook_node(nb_json)
             out_file.write(body)
 
-    def create_post(self, path, onefile=False, **kw):
-        if OrderedDict is not None:
-            metadata = OrderedDict()
-        else:
-            metadata = {}
+    def create_post(self, path, onefile=False, is_page=False, **kw):
+        metadata = OrderedDict()
         metadata.update(self.default_metadata)
         metadata.update(kw)
         d_name = os.path.dirname(path)
@@ -81,7 +78,7 @@ class CompileIPynb(PageCompiler):
                                 metadata['date'], metadata['tags'],
                                 metadata['link'],
                                 metadata['description'], metadata['type'])))
-        print("Your post's metadata is at: ", meta_path)
+        print("Your {0}'s metadata is at: {1}".format('page' if is_page else 'post', meta_path))
         with codecs.open(path, "wb+", "utf8") as fd:
             fd.write("""{
  "metadata": {

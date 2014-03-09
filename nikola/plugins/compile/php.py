@@ -38,7 +38,7 @@ from nikola.utils import makedirs
 try:
     from collections import OrderedDict
 except ImportError:
-    OrderedDict = None  # NOQA
+    OrderedDict = dict  # NOQA
 
 
 class CompilePhp(PageCompiler):
@@ -50,11 +50,8 @@ class CompilePhp(PageCompiler):
         makedirs(os.path.dirname(dest))
         shutil.copyfile(source, dest)
 
-    def create_post(self, path, onefile=False, **kw):
-        if OrderedDict is not None:
-            metadata = OrderedDict()
-        else:
-            metadata = {}
+    def create_post(self, path, onefile=False, is_page=False, **kw):
+        metadata = OrderedDict()
         metadata.update(self.default_metadata)
         metadata.update(kw)
         os.makedirs(os.path.dirname(path))
@@ -64,7 +61,7 @@ class CompilePhp(PageCompiler):
                 for k, v in metadata.items():
                     fd.write('.. {0}: {1}\n'.format(k, v))
                 fd.write('-->\n\n')
-            fd.write("\n<p>Write your post here.</p>")
+            fd.write("\n<p>Write your {0} here.</p>".format('page' if is_page else 'post'))
 
     def extension(self):
         return ".php"

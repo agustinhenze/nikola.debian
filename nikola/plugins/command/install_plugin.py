@@ -27,7 +27,6 @@
 from __future__ import print_function
 import codecs
 import os
-import sys
 import json
 import shutil
 import subprocess
@@ -123,10 +122,10 @@ class CommandInstallPlugin(Command):
     def do_install(self, name, data):
         if name in data:
             utils.makedirs(self.output_dir)
-            LOGGER.notice('Downloading: ' + data[name])
+            LOGGER.info('Downloading: ' + data[name])
             zip_file = BytesIO()
             zip_file.write(requests.get(data[name]).content)
-            LOGGER.notice('Extracting: {0} into plugins'.format(name))
+            LOGGER.info('Extracting: {0} into plugins'.format(name))
             utils.extract_all(zip_file, 'plugins')
             dest_path = os.path.join('plugins', name)
         else:
@@ -142,13 +141,13 @@ class CommandInstallPlugin(Command):
                 LOGGER.error("{0} is already installed".format(name))
                 return False
 
-            LOGGER.notice('Copying {0} into plugins'.format(plugin_path))
+            LOGGER.info('Copying {0} into plugins'.format(plugin_path))
             shutil.copytree(plugin_path, dest_path)
 
         reqpath = os.path.join(dest_path, 'requirements.txt')
         if os.path.exists(reqpath):
             LOGGER.notice('This plugin has Python dependencies.')
-            LOGGER.notice('Installing dependencies with pip...')
+            LOGGER.info('Installing dependencies with pip...')
             try:
                 subprocess.check_call(('pip', 'install', '-r', reqpath))
             except subprocess.CalledProcessError:
@@ -159,7 +158,7 @@ class CommandInstallPlugin(Command):
                 print('You have to install those yourself or through a '
                       'package manager.')
             else:
-                LOGGER.notice('Dependency installation succeeded.')
+                LOGGER.info('Dependency installation succeeded.')
         reqnpypath = os.path.join(dest_path, 'requirements-nonpy.txt')
         if os.path.exists(reqnpypath):
             LOGGER.notice('This plugin has third-party '
@@ -177,10 +176,10 @@ class CommandInstallPlugin(Command):
                   'manager.')
         confpypath = os.path.join(dest_path, 'conf.py.sample')
         if os.path.exists(confpypath):
-            LOGGER.notice('This plugin has a sample config file.')
+            LOGGER.notice('This plugin has a sample config file.  Integrate it with yours in order to make this plugin work!')
             print('Contents of the conf.py.sample file:\n')
             with codecs.open(confpypath, 'rb', 'utf-8') as fh:
-                if sys.platform == 'win32':
+                if self.site.colorful:
                     print(indent(pygments.highlight(
                         fh.read(), PythonLexer(), TerminalFormatter()),
                         4 * ' '))

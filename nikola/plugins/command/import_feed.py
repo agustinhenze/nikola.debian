@@ -43,6 +43,7 @@ from nikola.plugin_categories import Command
 from nikola import utils
 from nikola.utils import req_missing
 from nikola.plugins.basic_import import ImportMixin
+from nikola.plugins.command.init import SAMPLE_CONF, prepare_config
 
 LOGGER = utils.get_logger('import_feed', utils.STDERR_HANDLER)
 
@@ -82,7 +83,7 @@ class CommandImportFeed(Command, ImportMixin):
         self.import_posts(channel)
 
         self.write_configuration(self.get_configuration_output_path(
-        ), conf_template.render(**self.context))
+        ), conf_template.render(**prepare_config(self.context)))
 
     @classmethod
     def get_channel_from_file(cls, filename):
@@ -90,7 +91,7 @@ class CommandImportFeed(Command, ImportMixin):
 
     @staticmethod
     def populate_context(channel):
-        context = {}
+        context = SAMPLE_CONF.copy()
         context['DEFAULT_LANG'] = channel.feed.title_detail.language \
             if channel.feed.title_detail.language else 'en'
         context['BLOG_TITLE'] = channel.feed.title
@@ -100,9 +101,11 @@ class CommandImportFeed(Command, ImportMixin):
         context['BLOG_EMAIL'] = channel.feed.author_detail.get('email', '') if 'author_detail' in channel.feed else ''
         context['BLOG_AUTHOR'] = channel.feed.author_detail.get('name', '') if 'author_detail' in channel.feed else ''
 
-        context['POST_PAGES'] = '''(
-            ("posts/*.html", "posts", "post.tmpl", True),
-            ("stories/*.html", "stories", "story.tmpl", False),
+        context['POSTS'] = '''(
+            ("posts/*.html", "posts", "post.tmpl"),
+        )'''
+        context['PAGES'] = '''(
+            ("stories/*.html", "stories", "story.tmpl"),
         )'''
         context['COMPILERS'] = '''{
         "rest": ('.txt', '.rst'),

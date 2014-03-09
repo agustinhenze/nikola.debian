@@ -60,6 +60,16 @@ def main(args):
         quiet = True
     global config
 
+    colorful = False
+    if sys.stderr.isatty():
+        colorful = True
+        try:
+            import colorama
+            colorama.init()
+        except ImportError:
+            if os.name == 'nt':
+                colorful = False
+
     root = get_root_dir()
     if root:
         os.chdir(root)
@@ -76,6 +86,8 @@ def main(args):
             sys.exit(1)
         config = {}
 
+    config.update({'__colorful__': colorful})
+
     site = Nikola(**config)
     return DoitNikola(site, quiet).run(args)
 
@@ -86,7 +98,7 @@ class Help(DoitHelp):
     @staticmethod
     def print_usage(cmds):
         """print nikola "usage" (basic help) instructions"""
-        print("Nikola is a tool to create static websites and blogs. For full documentation and more information, please visit http://getnikola.com\n\n")
+        print("Nikola is a tool to create static websites and blogs. For full documentation and more information, please visit http://getnikola.com/\n\n")
         print("Available commands:")
         for cmd in sorted(cmds.values(), key=attrgetter('name')):
             print("  nikola %-*s %s" % (20, cmd.name, cmd.doc_purpose))

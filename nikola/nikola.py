@@ -25,8 +25,10 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import print_function, unicode_literals
+import codecs
 from collections import defaultdict
 from copy import copy
+import datetime
 import glob
 import locale
 import os
@@ -41,6 +43,7 @@ try:
     import pyphen
 except ImportError:
     pyphen = None
+import pytz
 
 import logging
 from . import DEBUG
@@ -66,10 +69,14 @@ from .plugin_categories import (
     SignalHandler,
 )
 
+from .utils import ColorfulStderrHandler
 
 config_changed = utils.config_changed
 
 __all__ = ['Nikola']
+
+# Default pattern for translation files' names
+DEFAULT_TRANSLATIONS_PATTERN = '{path}.{ext}.{lang}'
 
 
 class Nikola(object):
@@ -92,6 +99,7 @@ class Nikola(object):
         self.path_handlers = {
             'slug': self.slug_path,
             'post_path': self.post_path,
+            'filename': self.filename_path,
         }
 
         self.strict = False
@@ -111,8 +119,15 @@ class Nikola(object):
         self.loghandlers = []
         if not config:
             self.configured = False
+            self.colorful = False
         else:
             self.configured = True
+            self.colorful = config.pop('__colorful__', False)
+
+        ColorfulStderrHandler._colorful = self.colorful
+
+        # Maintain API
+        utils.generic_rss_renderer = self.generic_rss_renderer
 
         # This is the default config
         self.config = {
@@ -173,6 +188,7 @@ class Nikola(object):
             'INDEX_PATH': '',
             'IPYNB_CONFIG': {},
             'LESS_COMPILER': 'lessc',
+            'LESS_OPTIONS': [],
             'LICENSE': '',
             'LINK_CHECK_WHITELIST': [],
             'LISTINGS_FOLDER': 'listings',
@@ -192,6 +208,7 @@ class Nikola(object):
             'RSS_PATH': '',
             'RSS_TEASERS': True,
             'SASS_COMPILER': 'sass',
+            'SASS_OPTIONS': [],
             'SEARCH_FORM': '',
             'SLUG_TAG_PATH': True,
             'SOCIAL_BUTTONS_CODE': SOCIAL_BUTTONS_CODE,
@@ -201,6 +218,7 @@ class Nikola(object):
             'SITEMAP_INCLUDE_FILELESS_DIRS': True,
             'TAG_PATH': 'categories',
             'TAG_PAGES_ARE_INDEXES': False,
+            'TEMPLATE_FILTERS': {},
             'THEME': 'bootstrap',
             'THEME_REVEAL_CONFIG_SUBTHEME': 'sky',
             'THEME_REVEAL_CONFIG_TRANSITION': 'cube',
@@ -217,7 +235,7 @@ class Nikola(object):
             'SCHEDULE_FORCE_TODAY': False,
             'LOGGING_HANDLERS': {'stderr': {'loglevel': 'WARNING', 'bubble': True}},
             'DEMOTE_HEADERS': 1,
-            'TRANSLATIONS_PATTERN': '{path}.{ext}.{lang}',
+            'TRANSLATIONS_PATTERN': DEFAULT_TRANSLATIONS_PATTERN,
         }
 
         self.config.update(config)
@@ -302,10 +320,10 @@ class Nikola(object):
             self.config['STRIP_INDEXES'] = config['STRIP_INDEX_HTML']
 
         # PRETTY_URLS defaults to enabling STRIP_INDEXES unless explicitly disabled
-        if config.get('PRETTY_URLS', False) and 'STRIP_INDEXES' not in config:
+        if self.config.get('PRETTY_URLS') and 'STRIP_INDEXES' not in config:
             self.config['STRIP_INDEXES'] = True
 
-        if config.get('COPY_SOURCES') and not self.config['HIDE_SOURCELINK']:
+        if not self.config.get('COPY_SOURCES'):
             self.config['HIDE_SOURCELINK'] = True
 
         self.config['TRANSLATIONS'] = self.config.get('TRANSLATIONS',
@@ -408,6 +426,13 @@ class Nikola(object):
             self.plugin_manager.activatePluginByName(plugin_info.name)
             plugin_info.plugin_object.set_site(self)
 
+        # Also add aliases for combinations with TRANSLATIONS_PATTERN
+        self.config['COMPILERS'] = dict([(lang, list(exts) + [
+            utils.get_translation_candidate(self.config, "f" + ext, lang)[1:]
+            for ext in exts
+            for lang in self.config['TRANSLATIONS'].keys()])
+            for lang, exts in list(self.config['COMPILERS'].items())])
+
         # Activate all required compiler plugins
         for plugin_info in self.plugin_manager.getPluginsOfCategory("PageCompiler"):
             if plugin_info.name in self.config["COMPILERS"].keys():
@@ -462,6 +487,11 @@ class Nikola(object):
         self._GLOBAL_CONTEXT['navigation_links'] = utils.Functionary(list, self.config['DEFAULT_LANG'])
         for k, v in self.config.get('NAVIGATION_LINKS', {}).items():
             self._GLOBAL_CONTEXT['navigation_links'][k] = v
+
+        # avoid #1082 by making sure all keys in navigation_links are read once
+        for k in self._GLOBAL_CONTEXT['translations']:
+            self._GLOBAL_CONTEXT['navigation_links'][k]
+
         # TODO: remove on v7
         # Compatibility alias
         self._GLOBAL_CONTEXT['sidebar_links'] = self._GLOBAL_CONTEXT['navigation_links']
@@ -498,7 +528,7 @@ class Nikola(object):
                 self.config['THEME'] = theme_replacements[self.config['THEME']]
                 if self.config['THEME'] == 'oldfashioned':
                     utils.LOGGER.warn('''You may need to install the "oldfashioned" theme '''
-                                      '''from themes.nikola.ralsina.com.ar because it's not '''
+                                      '''from themes.getnikola.com because it's not '''
                                       '''shipped by default anymore.''')
                 utils.LOGGER.warn('Please change your THEME setting.')
             try:
@@ -560,6 +590,7 @@ class Nikola(object):
                                            for name in self.THEMES]
             self._template_system.set_directories(lookup_dirs,
                                                   self.config['CACHE_FOLDER'])
+            self._template_system.set_site(self)
         return self._template_system
 
     template_system = property(_get_template_system)
@@ -576,9 +607,9 @@ class Nikola(object):
             compile_html = self.inverse_compilers[ext]
         except KeyError:
             # Find the correct compiler for this files extension
-            langs = [lang for lang, exts in
-                     list(self.config['COMPILERS'].items())
-                     if ext in exts]
+            lang_exts_tab = list(self.config['COMPILERS'].items())
+            langs = [lang for lang, exts in lang_exts_tab if ext in exts or
+                     len([ext_ for ext_ in exts if source_name.endswith(ext_)]) > 0]
             if len(langs) != 1:
                 if len(set(langs)) > 1:
                     exit("Your file extension->compiler definition is"
@@ -618,78 +649,158 @@ class Nikola(object):
         # The os.sep is because normpath will change "/" to "\" on windows
         src = "/".join(src.split(os.sep))
 
-        parsed_src = urlsplit(src)
-        src_elems = parsed_src.path.split('/')[1:]
-
-        def replacer(dst):
-            # Refuse to replace links that are full URLs.
-            dst_url = urlparse(dst)
-            if dst_url.netloc:
-                if dst_url.scheme == 'link':  # Magic link
-                    dst = self.link(dst_url.netloc, dst_url.path.lstrip('/'),
-                                    context['lang'])
-                else:
-                    return dst
-
-            # Refuse to replace links that consist of a fragment only
-            if ((not dst_url.scheme) and (not dst_url.netloc) and
-                    (not dst_url.path) and (not dst_url.params) and
-                    (not dst_url.query) and dst_url.fragment):
-                return dst
-
-            # Normalize
-            dst = urljoin(src, dst)
-
-            # Avoid empty links.
-            if src == dst:
-                if self.config.get('URL_TYPE') == 'absolute':
-                    dst = urljoin(self.config['BASE_URL'], dst)
-                    return dst
-                elif self.config.get('URL_TYPE') == 'full_path':
-                    return dst
-                else:
-                    return "#"
-
-            # Check that link can be made relative, otherwise return dest
-            parsed_dst = urlsplit(dst)
-            if parsed_src[:2] != parsed_dst[:2]:
-                if self.config.get('URL_TYPE') == 'absolute':
-                    dst = urljoin(self.config['BASE_URL'], dst)
-                return dst
-
-            if self.config.get('URL_TYPE') in ('full_path', 'absolute'):
-                if self.config.get('URL_TYPE') == 'absolute':
-                    dst = urljoin(self.config['BASE_URL'], dst)
-                return dst
-
-            # Now both paths are on the same site and absolute
-            dst_elems = parsed_dst.path.split('/')[1:]
-
-            i = 0
-            for (i, s), d in zip(enumerate(src_elems), dst_elems):
-                if s != d:
-                    break
-            # Now i is the longest common prefix
-            result = '/'.join(['..'] * (len(src_elems) - i - 1) +
-                              dst_elems[i:])
-
-            if not result:
-                result = "."
-
-            # Don't forget the fragment (anchor) part of the link
-            if parsed_dst.fragment:
-                result += "#" + parsed_dst.fragment
-
-            assert result, (src, dst, i, src_elems, dst_elems)
-
-            return result
-
         utils.makedirs(os.path.dirname(output_name))
         doc = lxml.html.document_fromstring(data)
-        doc.rewrite_links(replacer)
+        doc.rewrite_links(lambda dst: self.url_replacer(src, dst, context['lang']))
         data = b'<!DOCTYPE html>' + lxml.html.tostring(doc, encoding='utf8')
         with open(output_name, "wb+") as post_file:
             post_file.write(data)
+
+    def url_replacer(self, src, dst, lang=None):
+        """URL mangler.
+
+        * Replaces link:// URLs with real links
+        * Makes dst relative to src
+        * Leaves fragments unchanged
+        * Leaves full URLs unchanged
+        * Avoids empty links
+
+        src is the URL where this link is used
+        dst is the link to be mangled
+        lang is used for language-sensitive URLs in link://
+
+        """
+        parsed_src = urlsplit(src)
+        src_elems = parsed_src.path.split('/')[1:]
+        dst_url = urlparse(dst)
+        if lang is None:
+            lang = self.default_lang
+
+        # Refuse to replace links that are full URLs.
+        if dst_url.netloc:
+            if dst_url.scheme == 'link':  # Magic link
+                dst = self.link(dst_url.netloc, dst_url.path.lstrip('/'), lang)
+            else:
+                return dst
+        elif dst_url.scheme == 'link':  # Magic absolute path link:
+            dst = dst_url.path
+            return dst
+
+        # Refuse to replace links that consist of a fragment only
+        if ((not dst_url.scheme) and (not dst_url.netloc) and
+                (not dst_url.path) and (not dst_url.params) and
+                (not dst_url.query) and dst_url.fragment):
+            return dst
+
+        # Normalize
+        dst = urljoin(src, dst)
+
+        # Avoid empty links.
+        if src == dst:
+            if self.config.get('URL_TYPE') == 'absolute':
+                dst = urljoin(self.config['BASE_URL'], dst.lstrip('/'))
+                return dst
+            elif self.config.get('URL_TYPE') == 'full_path':
+                dst = urljoin(self.config['BASE_URL'], dst.lstrip('/'))
+                return urlparse(dst).path
+            else:
+                return "#"
+
+        # Check that link can be made relative, otherwise return dest
+        parsed_dst = urlsplit(dst)
+        if parsed_src[:2] != parsed_dst[:2]:
+            if self.config.get('URL_TYPE') == 'absolute':
+                dst = urljoin(self.config['BASE_URL'], dst)
+            return dst
+
+        if self.config.get('URL_TYPE') in ('full_path', 'absolute'):
+            dst = urljoin(self.config['BASE_URL'], dst.lstrip('/'))
+            if self.config.get('URL_TYPE') == 'full_path':
+                parsed = urlparse(urljoin(self.config['BASE_URL'], dst.lstrip('/')))
+                if parsed.fragment:
+                    dst = '{0}#{1}'.format(parsed.path, parsed.fragment)
+                else:
+                    dst = parsed.path
+            return dst
+
+        # Now both paths are on the same site and absolute
+        dst_elems = parsed_dst.path.split('/')[1:]
+
+        i = 0
+        for (i, s), d in zip(enumerate(src_elems), dst_elems):
+            if s != d:
+                break
+        # Now i is the longest common prefix
+        result = '/'.join(['..'] * (len(src_elems) - i - 1) + dst_elems[i:])
+
+        if not result:
+            result = "."
+
+        # Don't forget the fragment (anchor) part of the link
+        if parsed_dst.fragment:
+            result += "#" + parsed_dst.fragment
+
+        assert result, (src, dst, i, src_elems, dst_elems)
+
+        return result
+
+    def generic_rss_renderer(self, lang, title, link, description, timeline, output_path,
+                             rss_teasers, feed_length=10, feed_url=None):
+        """Takes all necessary data, and renders a RSS feed in output_path."""
+        items = []
+        for post in timeline[:feed_length]:
+            # Massage the post's HTML
+            data = post.text(lang, teaser_only=rss_teasers, really_absolute=True)
+            if feed_url is not None and data:
+                # FIXME: this is duplicated with code in Post.text()
+                try:
+                    doc = lxml.html.document_fromstring(data)
+                    doc.rewrite_links(lambda dst: self.url_replacer(feed_url, dst, lang))
+                    try:
+                        body = doc.body
+                        data = (body.text or '') + ''.join(
+                            [lxml.html.tostring(child, encoding='unicode')
+                                for child in body.iterchildren()])
+                    except IndexError:  # No body there, it happens sometimes
+                        data = ''
+                except lxml.etree.ParserError as e:
+                    if str(e) == "Document is empty":
+                        data = ""
+                    else:  # let other errors raise
+                        raise(e)
+
+            args = {
+                'title': post.title(lang),
+                'link': post.permalink(lang, absolute=True),
+                'description': data,
+                'guid': post.permalink(lang, absolute=True),
+                # PyRSS2Gen's pubDate is GMT time.
+                'pubDate': (post.date if post.date.tzinfo is None else
+                            post.date.astimezone(pytz.timezone('UTC'))),
+                'categories': post._tags.get(lang, []),
+                'author': post.meta('author'),
+            }
+
+            items.append(utils.ExtendedItem(**args))
+        rss_obj = utils.ExtendedRSS2(
+            title=title,
+            link=link,
+            description=description,
+            lastBuildDate=datetime.datetime.now(),
+            items=items,
+            generator='Nikola <http://getnikola.com/>',
+            language=lang
+        )
+        rss_obj.self_url = feed_url
+        rss_obj.rss_attrs["xmlns:atom"] = "http://www.w3.org/2005/Atom"
+        rss_obj.rss_attrs["xmlns:dc"] = "http://purl.org/dc/elements/1.1/"
+        dst_dir = os.path.dirname(output_path)
+        utils.makedirs(dst_dir)
+        with codecs.open(output_path, "wb+", "utf-8") as rss_file:
+            data = rss_obj.to_xml(encoding='utf-8')
+            if isinstance(data, utils.bytes_str):
+                data = data.decode('utf-8')
+            rss_file.write(data)
 
     def path(self, kind, name, lang=None, is_link=False):
         """Build the path to a certain kind of page.
@@ -712,6 +823,7 @@ class Nikola(object):
         * listing (name is the source code file name)
         * post_path (name is 1st element in a POSTS/PAGES tuple)
         * slug (name is the slug of a post or story)
+        * filename (name is the source filename of a post/story, in DEFAULT_LANG, relative to conf.py)
 
         The returned value is always a path relative to output, like
         "categories/whatever.html"
@@ -727,6 +839,7 @@ class Nikola(object):
             lang = utils.LocaleBorg().current_lang
 
         path = self.path_handlers[kind](name, lang)
+        path = [os.path.normpath(p) for p in path if p != '.']  # Fix Issue #1028
 
         if is_link:
             link = '/' + ('/'.join(path))
@@ -755,6 +868,16 @@ class Nikola(object):
                 utils.LOGGER.warning('Ambiguous path request for slug: {0}'.format(name))
             return [_f for _f in results[0].permalink(lang).split('/') if _f]
 
+    def filename_path(self, name, lang):
+        """filename path handler"""
+        results = [p for p in self.timeline if p.source_path == name]
+        if not results:
+            utils.LOGGER.warning("Can't resolve path request for filename: {0}".format(name))
+        else:
+            if len(results) > 1:
+                utils.LOGGER.error("Ambiguous path request for filename: {0}".format(name))
+            return [_f for _f in results[0].permalink(lang).split('/') if _f]
+
     def register_path_handler(self, kind, f):
         if kind in self.path_handlers:
             utils.LOGGER.warning('Conflicting path handlers for kind: {0}'.format(kind))
@@ -766,8 +889,10 @@ class Nikola(object):
 
     def abs_link(self, dst):
         # Normalize
-        dst = urljoin(self.config['BASE_URL'], dst)
-
+        if dst:  # Mako templates and empty strings evaluate to False
+            dst = urljoin(self.config['BASE_URL'], dst.lstrip('/'))
+        else:
+            dst = self.config['BASE_URL']
         return urlparse(dst).geturl()
 
     def rel_link(self, src, dst):
@@ -848,7 +973,8 @@ class Nikola(object):
             return
         seen = set([])
         print("Scanning posts", end='', file=sys.stderr)
-        lower_case_tags = set([])
+        slugged_tags = set([])
+        quit = False
         for wildcard, destination, template_name, use_in_feeds in \
                 self.config['post_pages']:
             print(".", end='', file=sys.stderr)
@@ -864,11 +990,16 @@ class Nikola(object):
                     translated_list = glob.glob(lang_glob)
                     # dir_glob could have put it already in full_list
                     full_list = list(set(full_list + translated_list))
-                    # Eliminate translations from full_list (even from dir_glob)
-                    for fname in full_list:
+
+                # Eliminate translations from full_list if they are not the primary,
+                # or a secondary with no primary
+                limited_list = full_list[:]
+                for fname in full_list:
+                    for lang in self.config['TRANSLATIONS'].keys():
                         translation = utils.get_translation_candidate(self.config, fname, lang)
                         if translation in full_list:
-                            full_list.remove(translation)
+                            limited_list.remove(translation)
+                full_list = limited_list
 
                 # We eliminate from the list the files inside any .ipynb folder
                 full_list = [p for p in full_list
@@ -897,16 +1028,16 @@ class Nikola(object):
                         self.posts_per_month[
                             '{0}/{1:02d}'.format(post.date.year, post.date.month)].append(post.source_path)
                         for tag in post.alltags:
-                            if tag.lower() in lower_case_tags:
+                            if utils.slugify(tag) in slugged_tags:
                                 if tag not in self.posts_per_tag:
                                     # Tags that differ only in case
                                     other_tag = [k for k in self.posts_per_tag.keys() if k.lower() == tag.lower()][0]
-                                    utils.LOGGER.error('You have cases that differ only in upper/lower case: {0} and {1}'.format(tag, other_tag))
+                                    utils.LOGGER.error('You have tags that are too similar: {0} and {1}'.format(tag, other_tag))
                                     utils.LOGGER.error('Tag {0} is used in: {1}'.format(tag, post.source_path))
                                     utils.LOGGER.error('Tag {0} is used in: {1}'.format(other_tag, ', '.join(self.posts_per_tag[other_tag])))
-                                    sys.exit(1)
+                                    quit = True
                             else:
-                                lower_case_tags.add(tag.lower())
+                                slugged_tags.add(utils.slugify(tag))
                             self.posts_per_tag[tag].append(post.source_path)
                         self.posts_per_category[post.meta('category')].append(post.source_path)
                     else:
@@ -925,6 +1056,8 @@ class Nikola(object):
             p.prev_post = post_timeline[i + 1]
         self._scanned = True
         print("done!", file=sys.stderr)
+        if quit:
+            sys.exit(1)
 
     def generic_page_renderer(self, lang, post, filters):
         """Render post fragments to final HTML pages."""

@@ -34,7 +34,7 @@ from nikola.plugin_categories import Command
 from nikola.utils import req_missing
 
 
-class Auto(Command):
+class CommandAuto(Command):
     """Start debugging console."""
     name = "auto"
     doc_purpose = "automatically detect site changes, rebuild and optionally refresh a browser"
@@ -61,26 +61,26 @@ class Auto(Command):
         try:
             from livereload import Server
         except ImportError:
-            req_missing(['livereload>=2.0.0'], 'use the "auto" command')
+            req_missing(['livereload==2.1.0'], 'use the "auto" command')
             return
 
-        # Run an initial build so we are uptodate
+        # Run an initial build so we are up-to-date
         subprocess.call(("nikola", "build"))
 
         port = options and options.get('port')
 
         server = Server()
-        server.watch('conf.py')
-        server.watch('themes/')
-        server.watch('templates/')
+        server.watch('conf.py', 'nikola build')
+        server.watch('themes/', 'nikola build')
+        server.watch('templates/', 'nikola build')
         server.watch(self.site.config['GALLERY_PATH'])
         for item in self.site.config['post_pages']:
-            server.watch(os.path.dirname(item[0]))
+            server.watch(os.path.dirname(item[0]), 'nikola build')
         for item in self.site.config['FILES_FOLDERS']:
-            server.watch(os.path.dirname(item))
+            server.watch(os.path.dirname(item), 'nikola build')
 
         out_folder = self.site.config['OUTPUT_FOLDER']
         if options and options.get('browser'):
             webbrowser.open('http://localhost:{0}'.format(port))
 
-        server.serve(port, out_folder)
+        server.serve(port, None, out_folder)

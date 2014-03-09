@@ -194,6 +194,9 @@ class Post(object):
         # If mathjax is a tag, then enable mathjax rendering support
         self.is_mathjax = 'mathjax' in self.tags
 
+    def __repr__(self):
+        return '<Post: {0}>'.format(self.source_path)
+
     def _has_pretty_url(self, lang):
         if self.pretty_urls and \
                 self.meta[lang].get('pretty_url', '') != 'False' and \
@@ -493,7 +496,7 @@ class Post(object):
         pieces = [_f for _f in pieces if _f and _f != '.']
         link = '/' + '/'.join(pieces)
         if absolute:
-            link = urljoin(self.base_url, link)
+            link = urljoin(self.base_url, link[1:])
         index_len = len(self.index_file)
         if self.strip_indexes and link[-(1 + index_len):] == '/' + self.index_file:
             return link[:-index_len]

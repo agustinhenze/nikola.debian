@@ -220,6 +220,19 @@ class TranslationsPatternTest1(TranslatedBuildTest):
             outf.write(data)
 
 
+class MissingDefaultLanguageTest(TranslatedBuildTest):
+    """Make sure posts only in secondary languages work."""
+
+    @classmethod
+    def fill_site(self):
+        super(MissingDefaultLanguageTest, self).fill_site()
+        os.unlink(os.path.join(self.target_dir, "stories", "1.txt"))
+
+    def test_translated_titles(self):
+        """Do not test titles as we just removed the translation"""
+        pass
+
+
 class TranslationsPatternTest2(TranslatedBuildTest):
     """Check that the path_lang.ext TRANSLATIONS_PATTERN works too"""
 
@@ -290,6 +303,54 @@ class TestCheck(DemoBuildTest):
                 __main__.main(['check', '-f'])
             except SystemExit as e:
                 self.assertEqual(e.code, 0)
+
+
+class TestCheckAbsoluteSubFolder(TestCheck):
+    """Validate links in a site which is:
+
+    * built in URL_TYPE="absolute"
+    * deployable to a subfolder (BASE_URL="http://getnikola.com/foo/")
+    """
+
+    @classmethod
+    def patch_site(self):
+        conf_path = os.path.join(self.target_dir, "conf.py")
+        with codecs.open(conf_path, "rb", "utf-8") as inf:
+            data = inf.read()
+            data = data.replace('SITE_URL = "http://getnikola.com/"',
+                                'SITE_URL = "http://getnikola.com/foo/"')
+            data = data.replace("# URL_TYPE = 'rel_path'",
+                                "URL_TYPE = 'absolute'")
+        with codecs.open(conf_path, "wb+", "utf8") as outf:
+            outf.write(data)
+            outf.flush()
+
+    def test_index_in_sitemap(self):
+        """Test that the correct path is in sitemap, and not the wrong one."""
+        sitemap_path = os.path.join(self.target_dir, "output", "sitemap.xml")
+        sitemap_data = codecs.open(sitemap_path, "r", "utf8").read()
+        self.assertTrue('<loc>http://getnikola.com/foo/index.html</loc>' in sitemap_data)
+
+
+class TestCheckFullPathSubFolder(TestCheckAbsoluteSubFolder):
+    """Validate links in a site which is:
+
+    * built in URL_TYPE="full_path"
+    * deployable to a subfolder (BASE_URL="http://getnikola.com/foo/")
+    """
+
+    @classmethod
+    def patch_site(self):
+        conf_path = os.path.join(self.target_dir, "conf.py")
+        with codecs.open(conf_path, "rb", "utf-8") as inf:
+            data = inf.read()
+            data = data.replace('SITE_URL = "http://getnikola.com/"',
+                                'SITE_URL = "http://getnikola.com/foo/"')
+            data = data.replace("# URL_TYPE = 'rel_path'",
+                                "URL_TYPE = 'full_path'")
+        with codecs.open(conf_path, "wb+", "utf8") as outf:
+            outf.write(data)
+            outf.flush()
 
 
 class TestCheckFailure(DemoBuildTest):
