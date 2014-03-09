@@ -1,4 +1,4 @@
-From d5075664c8ed6ca24a4f020484d60b2e22040d11 Mon Sep 17 00:00:00 2001
+From 53ee55296e2e23016f9229644bc8dd6a3c2eac92 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Chris=20=E2=80=9CKwpolska=E2=80=9D=20Warrick?=
  <kwpolska@gmail.com>
 Date: Thu, 23 Jan 2014 19:07:26 +0100
@@ -11,44 +11,44 @@ Signed-off-by: Chris “Kwpolska” Warrick <kwpolska@gmail.com>
 ---
  nikola/conf.py.in                         |   2 +
  nikola/plugins/command/init.py            |   2 +-
- nikola/plugins/command/install_bs3.plugin |  10 +++
+ nikola/plugins/command/install_bs3.plugin |   9 +++
  nikola/plugins/command/install_bs3.py     | 110 ++++++++++++++++++++++++++++++
- 4 files changed, 123 insertions(+), 1 deletion(-)
+ 4 files changed, 122 insertions(+), 1 deletion(-)
  create mode 100644 nikola/plugins/command/install_bs3.plugin
  create mode 100644 nikola/plugins/command/install_bs3.py
 
 diff --git a/nikola/conf.py.in b/nikola/conf.py.in
-index d487ed1..4834468 100644
+index b398ac3..69ed0e8 100644
 --- a/nikola/conf.py.in
 +++ b/nikola/conf.py.in
-@@ -285,6 +285,8 @@ COMPILERS = ${COMPILERS}
+@@ -311,6 +311,8 @@ COMPILERS = ${COMPILERS}
                               # the main (the newest) index page (index.html)
  
  # Name of the theme to use.
 +# WARNING: With this Nikola package, the bootstrap3 theme must be installed
 +#          separately. In order to do this, use: nikola install_bs3
- THEME = "${THEME}"
+ THEME = ${THEME}
  
  # Color scheme to be used for code blocks. If your theme provides
 diff --git a/nikola/plugins/command/init.py b/nikola/plugins/command/init.py
-index 96caad8..dc5ca2d 100644
+index d7eeed7..29eebcf 100644
 --- a/nikola/plugins/command/init.py
 +++ b/nikola/plugins/command/init.py
-@@ -64,7 +64,7 @@ class CommandInit(Command):
-         'BLOG_EMAIL': "joe@demo.site",
-         'BLOG_DESCRIPTION': "This is a demo site for Nikola.",
-         'DEFAULT_LANG': "en",
--        'THEME': 'bootstrap3',
-+        'THEME': 'bootstrap',
- 
-         'POSTS': """(
-     ("posts/*.rst", "posts", "post.tmpl"),
+@@ -47,7 +47,7 @@ SAMPLE_CONF = {
+     'BLOG_EMAIL': "joe@demo.site",
+     'BLOG_DESCRIPTION': "This is a demo site for Nikola.",
+     'DEFAULT_LANG': "en",
+-    'THEME': 'bootstrap3',
++    'THEME': 'bootstrap',
+     'COMMENT_SYSTEM': 'disqus',
+     'COMMENT_SYSTEM_ID': 'nikolademo',
+     'TRANSLATIONS_PATTERN': DEFAULT_TRANSLATIONS_PATTERN,
 diff --git a/nikola/plugins/command/install_bs3.plugin b/nikola/plugins/command/install_bs3.plugin
 new file mode 100644
-index 0000000..1773a07
+index 0000000..77730cc
 --- /dev/null
 +++ b/nikola/plugins/command/install_bs3.plugin
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,9 @@
 +[Core]
 +Name = install_bs3
 +Module = install_bs3
@@ -58,7 +58,6 @@ index 0000000..1773a07
 +Version = 0.1
 +Website = http://getnikola.com
 +Description = Install the bootstrap3 theme into the current site.
-+
 diff --git a/nikola/plugins/command/install_bs3.py b/nikola/plugins/command/install_bs3.py
 new file mode 100644
 index 0000000..4060aef
@@ -176,5 +175,5 @@ index 0000000..4060aef
 +            shutil.copytree(theme_path, dest_path)
 +        return True
 -- 
-1.8.5.3
+1.9.0
 
