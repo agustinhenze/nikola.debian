@@ -1,3 +1,10 @@
+nikola (6.4.0-1) unstable; urgency=medium
+
+  * New upstream release version 6.4.0
+  * Update patch of the custom debian install_bs3 command
+
+ -- Agustin Henze <tin@debian.org>  Sun, 09 Mar 2014 03:22:30 +0100
+
 nikola (6.3.0-1) unstable; urgency=medium
 
   * New upstream release version 6.3.0
