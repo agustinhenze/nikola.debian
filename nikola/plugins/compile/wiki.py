@@ -40,7 +40,7 @@ from nikola.plugin_categories import PageCompiler
 try:
     from collections import OrderedDict
 except ImportError:
-    OrderedDict = None  # NOQA
+    OrderedDict = dict  # NOQA
 
 from nikola.utils import makedirs, req_missing
 
@@ -62,11 +62,8 @@ class CompileWiki(PageCompiler):
             output = HtmlEmitter(document).emit()
             out_file.write(output)
 
-    def create_post(self, path, onefile=False, **kw):
-        if OrderedDict is not None:
-            metadata = OrderedDict()
-        else:
-            metadata = {}
+    def create_post(self, path, onefile=False, is_page=False, **kw):
+        metadata = OrderedDict()
         metadata.update(self.default_metadata)
         metadata.update(kw)
         makedirs(os.path.dirname(path))
@@ -75,4 +72,4 @@ class CompileWiki(PageCompiler):
                             'one-file format is not possible, use the -2 '
                             'option.')
         with codecs.open(path, "wb+", "utf8") as fd:
-            fd.write("Write your post here.")
+            fd.write("Write your {0} here.".format('page' if is_page else 'post'))

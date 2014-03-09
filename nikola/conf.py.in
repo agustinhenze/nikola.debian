@@ -4,21 +4,21 @@
 from __future__ import unicode_literals
 import time
 
-##############################################
-# Configuration, please edit
-##############################################
+#!! This is the configuration of Nikola. !!#
+#!!  You should edit it to your liking.  !!#
+
 
 # Data about this site
-BLOG_AUTHOR = "${BLOG_AUTHOR}"
-BLOG_TITLE = "${BLOG_TITLE}"
+BLOG_AUTHOR = ${BLOG_AUTHOR}
+BLOG_TITLE = ${BLOG_TITLE}
 # This is the main URL for your site. It will be used
 # in a prominent link
-SITE_URL = "${SITE_URL}"
+SITE_URL = ${SITE_URL}
 # This is the URL where nikola's output will be deployed.
 # If not set, defaults to SITE_URL
-# BASE_URL = "${SITE_URL}"
-BLOG_EMAIL = "${BLOG_EMAIL}"
-BLOG_DESCRIPTION = "${BLOG_DESCRIPTION}"
+# BASE_URL = ${SITE_URL}
+BLOG_EMAIL = ${BLOG_EMAIL}
+BLOG_DESCRIPTION = ${BLOG_DESCRIPTION}
 
 # Nikola is multilingual!
 #
@@ -36,6 +36,7 @@ BLOG_DESCRIPTION = "${BLOG_DESCRIPTION}"
 # fa     Persian
 # fi     Finnish
 # fr     French
+# hi     Hindi
 # hr     Croatian
 # it     Italian
 # ja     Japanese [NOT jp!]
@@ -51,12 +52,12 @@ BLOG_DESCRIPTION = "${BLOG_DESCRIPTION}"
 #
 # If you want to use Nikola with a non-supported language you have to provide
 # a module containing the necessary translations
-# (cf. the modules at nikola/data/themes/base/messages/fr.py).
+# (cf. the modules at nikola/data/themes/base/messages/).
 # If a specific post is not translated to a language, then the version
 # in the default language will be shown instead.
 
 # What is the default language?
-DEFAULT_LANG = "${DEFAULT_LANG}"
+DEFAULT_LANG = ${DEFAULT_LANG}
 
 # What other languages do you have?
 # The format is {"translationcode" : "path/to/translation" }
@@ -75,7 +76,7 @@ TRANSLATIONS = {
 # this pattern is also used for metadata:
 #     something.meta -> something.meta.pl
 
-TRANSLATIONS_PATTERN = "{path}.{ext}.{lang}"
+TRANSLATIONS_PATTERN = ${TRANSLATIONS_PATTERN}
 
 # If you don't want your Polish files to be considered Perl code, use this:
 # TRANSLATIONS_PATTERN = "{path}.{lang}.{ext}"
@@ -172,7 +173,8 @@ COMPILERS = ${COMPILERS}
 # the posts themselves. If set to False, it will be just a list of links.
 # TAG_PAGES_ARE_INDEXES = True
 
-# Final location is output / TRANSLATION[lang] / INDEX_PATH / index-*.html
+# Final location for the main blog page and sibling paginated pages is
+# output / TRANSLATION[lang] / INDEX_PATH / index-*.html
 # INDEX_PATH = ""
 
 # Create per-month archives instead of per-year
@@ -192,7 +194,7 @@ COMPILERS = ${COMPILERS}
 # absolute: a complete URL (that includes the SITE_URL)
 # URL_TYPE = 'rel_path'
 
-# Final locations are:
+# Final location for the blog main RSS feed is:
 # output / TRANSLATION[lang] / RSS_PATH / rss.xml
 # RSS_PATH = ""
 
@@ -270,8 +272,16 @@ COMPILERS = ${COMPILERS}
 # Compiler to process LESS files.
 # LESS_COMPILER = 'lessc'
 
+# A list of options to pass to the LESS compiler.
+# Final command is: LESS_COMPILER LESS_OPTIONS file.less
+# LESS_OPTIONS = []
+
 # Compiler to process Sass files.
 # SASS_COMPILER = 'sass'
+
+# A list of options to pass to the Sass compiler.
+# Final command is: SASS_COMPILER SASS_OPTIONS file.s(a|c)ss
+# SASS_OPTIONS = []
 
 # #############################################################################
 # Image Gallery Options
@@ -301,7 +311,7 @@ COMPILERS = ${COMPILERS}
                              # the main (the newest) index page (index.html)
 
 # Name of the theme to use.
-THEME = "${THEME}"
+THEME = ${THEME}
 
 # Color scheme to be used for code blocks. If your theme provides
 # "assets/css/code.css" this is ignored.
@@ -354,7 +364,6 @@ LICENSE = ""
 # src="http://i.creativecommons.org/l/by-nc-sa/2.5/ar/88x31.png"></a>"""
 
 # A small copyright notice for the page footer (in HTML).
-# Default is ''
 CONTENT_FOOTER = 'Contents &copy; {date} \
         <a href="mailto:{email}">{author}</a> - Powered by \
         <a href="http://getnikola.com" rel="nofollow">Nikola</a> \
@@ -367,12 +376,12 @@ CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
 # To use comments, you can choose between different third party comment
 # systems, one of "disqus", "livefyre", "intensedebate", "moot",
 #                 "googleplus", "facebook" or "isso"
-# COMMENT_SYSTEM = "disqus"
+# COMMENT_SYSTEM = ${COMMENT_SYSTEM}
 # And you also need to add your COMMENT_SYSTEM_ID which
 # depends on what comment system you use. The default is
 # "nikolademo" which is a test account for Disqus. More information
 # is in the manual.
-# COMMENT_SYSTEM_ID = "nikolademo"
+# COMMENT_SYSTEM_ID = ${COMMENT_SYSTEM_ID}
 
 # Enable annotations using annotateit.org?
 # If set to False, you can still enable them for individual posts and pages
@@ -572,9 +581,9 @@ CONTENT_FOOTER = CONTENT_FOOTER.format(email=BLOG_EMAIL,
 # USE_CDN = False
 
 # Extra things you want in the pages HEAD tag. This will be added right
-# before </HEAD>
+# before </head>
 # EXTRA_HEAD_DATA = ""
-# Google analytics or whatever else you use. Added to the bottom of <body>
+# Google Analytics or whatever else you use. Added to the bottom of <body>
 # in the default template (base.tmpl).
 # BODY_END = ""
 
@@ -680,7 +689,11 @@ LOGGING_HANDLERS = {
     #}
 }
 
+# Templates will use those filters, along with the defaults.
+# Consult your engine's documentation on filters if you need help defining
+# those.
+# TEMPLATE_FILTERS = {}
+
 # Put in global_context things you want available on all your templates.
 # It can be anything, data, functions, modules, etc.
-
 GLOBAL_CONTEXT = {}

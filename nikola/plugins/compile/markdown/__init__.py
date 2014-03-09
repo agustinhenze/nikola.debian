@@ -54,7 +54,7 @@ except ImportError:
 try:
     from collections import OrderedDict
 except ImportError:
-    OrderedDict = None  # NOQA
+    OrderedDict = dict  # NOQA
 
 from nikola.plugin_categories import PageCompiler
 from nikola.utils import makedirs, req_missing
@@ -81,11 +81,8 @@ class CompileMarkdown(PageCompiler):
             output = markdown(data, self.extensions)
             out_file.write(output)
 
-    def create_post(self, path, onefile=False, **kw):
-        if OrderedDict is not None:
-            metadata = OrderedDict()
-        else:
-            metadata = {}
+    def create_post(self, path, onefile=False, is_page=False, **kw):
+        metadata = OrderedDict()
         metadata.update(self.default_metadata)
         metadata.update(kw)
         makedirs(os.path.dirname(path))
@@ -95,4 +92,4 @@ class CompileMarkdown(PageCompiler):
                 for k, v in metadata.items():
                     fd.write('.. {0}: {1}\n'.format(k, v))
                 fd.write('-->\n\n')
-            fd.write("Write your post here.")
+            fd.write("Write your {0} here.".format('page' if is_page else 'post'))

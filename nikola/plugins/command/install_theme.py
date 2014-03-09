@@ -26,7 +26,6 @@
 
 from __future__ import print_function
 import os
-import sys
 import codecs
 import json
 import shutil
@@ -137,10 +136,10 @@ class CommandInstallTheme(Command):
     def do_install(self, name, data):
         if name in data:
             utils.makedirs(self.output_dir)
-            LOGGER.notice('Downloading: ' + data[name])
+            LOGGER.info('Downloading: ' + data[name])
             zip_file = BytesIO()
             zip_file.write(requests.get(data[name]).content)
-            LOGGER.notice('Extracting: {0} into themes'.format(name))
+            LOGGER.info('Extracting: {0} into themes'.format(name))
             utils.extract_all(zip_file)
             dest_path = os.path.join('themes', name)
         else:
@@ -156,14 +155,14 @@ class CommandInstallTheme(Command):
                 LOGGER.error("{0} is already installed".format(name))
                 return False
 
-            LOGGER.notice('Copying {0} into themes'.format(theme_path))
+            LOGGER.info('Copying {0} into themes'.format(theme_path))
             shutil.copytree(theme_path, dest_path)
         confpypath = os.path.join(dest_path, 'conf.py.sample')
         if os.path.exists(confpypath):
-            LOGGER.notice('This plugin has a sample config file.  Integrate it with yours in order to make this theme work!')
+            LOGGER.notice('This theme has a sample config file.  Integrate it with yours in order to make this theme work!')
             print('Contents of the conf.py.sample file:\n')
             with codecs.open(confpypath, 'rb', 'utf-8') as fh:
-                if sys.platform == 'win32':
+                if self.site.colorful:
                     print(indent(pygments.highlight(
                         fh.read(), PythonLexer(), TerminalFormatter()),
                         4 * ' '))

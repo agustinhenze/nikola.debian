@@ -46,21 +46,33 @@ class BuildLess(Task):
     def gen_tasks(self):
         """Generate CSS out of LESS sources."""
         self.compiler_name = self.site.config['LESS_COMPILER']
+        self.compiler_options = self.site.config['LESS_OPTIONS']
 
         kw = {
             'cache_folder': self.site.config['CACHE_FOLDER'],
             'themes': self.site.THEMES,
         }
+        tasks = {}
 
         # Find where in the theme chain we define the LESS targets
         # There can be many *.less in the folder, but we only will build
         # the ones listed in less/targets
-        targets_path = utils.get_asset_path(os.path.join(self.sources_folder, "targets"), self.site.THEMES)
+        if os.path.isfile(os.path.join(self.sources_folder, "targets")):
+            targets_path = os.path.join(self.sources_folder, "targets")
+        else:
+            targets_path = utils.get_asset_path(os.path.join(self.sources_folder, "targets"), self.site.THEMES)
         try:
             with codecs.open(targets_path, "rb", "utf-8") as inf:
                 targets = [x.strip() for x in inf.readlines()]
         except Exception:
             targets = []
+
+        for task in utils.copy_tree(self.sources_folder, os.path.join(kw['cache_folder'], self.sources_folder)):
+            if task['name'] in tasks:
+                continue
+            task['basename'] = 'prepare_less_sources'
+            tasks[task['name']] = task
+            yield task
 
         for theme_name in kw['themes']:
             src = os.path.join(utils.get_theme_path(theme_name), self.sources_folder)
@@ -82,7 +94,7 @@ class BuildLess(Task):
             src = os.path.join(kw['cache_folder'], self.sources_folder, target)
             run_in_shell = sys.platform == 'win32'
             try:
-                compiled = subprocess.check_output([self.compiler_name, src], shell=run_in_shell)
+                compiled = subprocess.check_output([self.compiler_name] + self.compiler_options + [src], shell=run_in_shell)
             except OSError:
                 utils.req_missing([self.compiler_name],
                                   'build LESS files (and use this theme)',

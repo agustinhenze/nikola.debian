@@ -40,7 +40,7 @@ from nikola.utils import makedirs, req_missing
 try:
     from collections import OrderedDict
 except ImportError:
-    OrderedDict = None  # NOQA
+    OrderedDict = dict  # NOQA
 
 
 class CompileAsciiDoc(PageCompiler):
@@ -57,11 +57,8 @@ class CompileAsciiDoc(PageCompiler):
             if e.strreror == 'No such file or directory':
                 req_missing(['asciidoc'], 'build this site (compile with asciidoc)', python=False)
 
-    def create_post(self, path, onefile=False, **kw):
-        if OrderedDict is not None:
-            metadata = OrderedDict()
-        else:
-            metadata = {}
+    def create_post(self, path, onefile=False, is_page=False, **kw):
+        metadata = OrderedDict()
         metadata.update(self.default_metadata)
         metadata.update(kw)
         makedirs(os.path.dirname(path))
@@ -71,4 +68,4 @@ class CompileAsciiDoc(PageCompiler):
                 for k, v in metadata.items():
                     fd.write('.. {0}: {1}\n'.format(k, v))
                 fd.write("/////////////////////////////////////////////\n")
-            fd.write("\nWrite your post here.")
+            fd.write("\nWrite your {0} here.".format('page' if is_page else 'post'))
