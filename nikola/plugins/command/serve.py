@@ -89,7 +89,11 @@ class CommandServe(Command):
                 server_url = "http://{0}:{1}/".format(options['address'], options['port'])
                 self.logger.info("Opening {0} in the default web browser ...".format(server_url))
                 webbrowser.open(server_url)
-            httpd.serve_forever()
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                self.logger.info("Server is shutting down.")
+                exit(130)
 
 
 class OurHTTPRequestHandler(SimpleHTTPRequestHandler):

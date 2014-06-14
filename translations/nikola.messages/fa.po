@@ -4,6 +4,9 @@
 # 
 # Translators:
 # Translators:
+# Translators:
+# Translators:
+# Hossein Rayeshman <rayeshman@gmail.com>, 2014
 # Shahinism <ishahinism@gmail.com>, 2013
 # sazary <soroosh@azary.ir>, 2013
 # Shahinism <ishahinism@gmail.com>, 2013
@@ -13,7 +16,7 @@ msgstr ""
 "Project-Id-Version: Nikola\n"
 "Report-Msgid-Bugs-To: ralsina@netmanagers.com.ar\n"
 "POT-Creation-Date: 2013-03-15 12:24-0300\n"
-"PO-Revision-Date: 2014-02-09 16:56+0000\n"
+"PO-Revision-Date: 2014-04-17 14:46+0000\n"
 "Last-Translator: Kwpolska <kwpolska@gmail.com>\n"
 "Language-Team: Persian (http://www.transifex.com/projects/p/nikola/language/fa/)\n"
 "MIME-Version: 1.0\n"
@@ -37,6 +40,9 @@ msgstr "دسته‌ها"
 msgid "Tags and Categories"
 msgstr "برچسب‌ها و دسته‌ها"
 
+msgid "Comments"
+msgstr "دیدگاه‌‌‌ها"
+
 msgid "Read more"
 msgstr "بیشتر بخوانید"
 
@@ -50,7 +56,7 @@ msgid "old posts, page %d"
 msgstr "صفحهٔ ارسال‌های قدیمی %d"
 
 msgid "page %d"
-msgstr ""
+msgstr "برگه %d"
 
 msgid "Source"
 msgstr "منبع"
@@ -72,6 +78,9 @@ msgstr "ارسال پیشین"
 msgid "Also available in:"
 msgstr "همچنین قابل دسترس از:"
 
+msgid "Languages:"
+msgstr "زبان‌‌ها:"
+
 msgid "Original site"
 msgstr "سایت اصلی"
 
@@ -81,6 +90,9 @@ msgstr "پست‌های قدیمی‌تر"
 msgid "Archive"
 msgstr "آرشیو"
 
+msgid "Publication date"
+msgstr "تاریخ انتشار"
+
 msgid "Posted:"
 msgstr "ارسال شده:"
 
@@ -88,7 +100,13 @@ msgid "Posts for {month} {year}"
 msgstr "ارسال برای {month} {year}"
 
 msgid "Nothing found."
-msgstr ""
+msgstr "هیچ‌چیزی پیدا نشد."
 
 msgid "No posts found."
+msgstr "هیچ پستی پیدا نشد."
+
+msgid "RSS feed"
+msgstr "خوراک"
+
+msgid "%d min remaining to read"
 msgstr ""

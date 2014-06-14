@@ -35,12 +35,7 @@ import os
 import subprocess
 
 from nikola.plugin_categories import PageCompiler
-from nikola.utils import req_missing, makedirs
-
-try:
-    from collections import OrderedDict
-except ImportError:
-    OrderedDict = dict  # NOQA
+from nikola.utils import req_missing, makedirs, write_metadata
 
 
 class CompilePandoc(PageCompiler):
@@ -56,15 +51,20 @@ class CompilePandoc(PageCompiler):
             if e.strreror == 'No such file or directory':
                 req_missing(['pandoc'], 'build this site (compile with pandoc)', python=False)
 
-    def create_post(self, path, onefile=False, is_page=False, **kw):
-        metadata = OrderedDict()
+    def create_post(self, path, **kw):
+        content = kw.pop('content', None)
+        onefile = kw.pop('onefile', False)
+        # is_page is not used by create_post as of now.
+        kw.pop('is_page', False)
+        metadata = {}
         metadata.update(self.default_metadata)
         metadata.update(kw)
         makedirs(os.path.dirname(path))
+        if not content.endswith('\n'):
+            content += '\n'
         with codecs.open(path, "wb+", "utf8") as fd:
             if onefile:
-                fd.write('<!-- \n')
-                for k, v in metadata.items():
-                    fd.write('.. {0}: {1}\n'.format(k, v))
+                fd.write('<!--\n')
+                fd.write(write_metadata(metadata))
                 fd.write('-->\n\n')
-            fd.write("Write your {0} here.".format('page' if is_page else 'post'))
+            fd.write(content)

@@ -7,15 +7,15 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-
 import codecs
 import locale
 import shutil
+import subprocess
 import tempfile
 import unittest
 
 import lxml.html
-from nose.plugins.skip import SkipTest
+import pytest
 
 from nikola import __main__
 import nikola
@@ -33,6 +33,7 @@ class EmptyBuildTest(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         """Setup a demo site."""
+        cls.startdir = os.getcwd()
         cls.tmpdir = tempfile.mkdtemp()
         cls.target_dir = os.path.join(cls.tmpdir, "target")
         cls.init_command = nikola.plugins.command.init.CommandInit()
@@ -69,6 +70,8 @@ class EmptyBuildTest(BaseTestCase):
     @classmethod
     def tearDownClass(self):
         """Remove the demo site."""
+        # Don't saw off the branch you're sitting on!
+        os.chdir(self.startdir)
         # ignore_errors=True for windows by issue #782
         shutil.rmtree(self.tmpdir, ignore_errors=(sys.platform == 'win32'))
         # Fixes Issue #438
@@ -182,9 +185,18 @@ class TranslatedBuildTest(EmptyBuildTest):
     def __init__(self, *a, **kw):
         super(TranslatedBuildTest, self).__init__(*a, **kw)
         try:
+            self.oldlocale = locale.getlocale()
             locale.setlocale(locale.LC_ALL, ("pl_PL", "utf8"))
         except:
-            raise SkipTest
+            pytest.skip()
+
+    @classmethod
+    def tearDownClass(self):
+        try:
+            locale.setlocale(locale.LC_ALL, self.oldlocale)
+        except:
+            pass
+        super(TranslatedBuildTest, self).tearDownClass()
 
     def test_translated_titles(self):
         """Check that translated title is picked up."""
@@ -207,15 +219,15 @@ class TranslationsPatternTest1(TranslatedBuildTest):
 
     @classmethod
     def patch_site(self):
-        """Set the TRANSLATIONS_PATTERN to the new v7 default"""
-        os.rename(os.path.join(self.target_dir, "stories", "1.txt.pl"),
-                  os.path.join(self.target_dir, "stories", "1.pl.txt")
+        """Set the TRANSLATIONS_PATTERN to the old v6 default"""
+        os.rename(os.path.join(self.target_dir, "stories", "1.pl.txt"),
+                  os.path.join(self.target_dir, "stories", "1.txt.pl")
                   )
         conf_path = os.path.join(self.target_dir, "conf.py")
         with codecs.open(conf_path, "rb", "utf-8") as inf:
             data = inf.read()
-            data = data.replace('TRANSLATIONS_PATTERN = "{path}.{ext}.{lang}"',
-                                'TRANSLATIONS_PATTERN = "{path}.{lang}.{ext}"')
+            data = data.replace('TRANSLATIONS_PATTERN = "{path}.{lang}.{ext}"',
+                                'TRANSLATIONS_PATTERN = "{path}.{ext}.{lang}"')
         with codecs.open(conf_path, "wb+", "utf8") as outf:
             outf.write(data)
 
@@ -238,15 +250,15 @@ class TranslationsPatternTest2(TranslatedBuildTest):
 
     @classmethod
     def patch_site(self):
-        """Set the TRANSLATIONS_PATTERN to the new v7 default"""
+        """Set the TRANSLATIONS_PATTERN to the old v6 default"""
         conf_path = os.path.join(self.target_dir, "conf.py")
-        os.rename(os.path.join(self.target_dir, "stories", "1.txt.pl"),
-                  os.path.join(self.target_dir, "stories", "1_pl.txt")
+        os.rename(os.path.join(self.target_dir, "stories", "1.pl.txt"),
+                  os.path.join(self.target_dir, "stories", "1.txt.pl")
                   )
         with codecs.open(conf_path, "rb", "utf-8") as inf:
             data = inf.read()
-            data = data.replace('TRANSLATIONS_PATTERN = "{path}.{ext}.{lang}"',
-                                'TRANSLATIONS_PATTERN = "{path}_{lang}.{ext}"')
+            data = data.replace('TRANSLATIONS_PATTERN = "{path}.{lang}.{ext}"',
+                                'TRANSLATIONS_PATTERN = "{path}.{ext}.{lang}"')
         with codecs.open(conf_path, "wb+", "utf8") as outf:
             outf.write(data)
 
@@ -444,6 +456,50 @@ class SubdirRunningTest(DemoBuildTest):
         with cd(os.path.join(self.target_dir, 'posts')):
             result = __main__.main(['build'])
             self.assertEquals(result, 0)
+
+
+class InvariantBuildTest(EmptyBuildTest):
+    """Test that a default build of --demo works."""
+
+    @classmethod
+    def build(self):
+        """Build the site."""
+        try:
+            self.oldlocale = locale.getlocale()
+            locale.setlocale(locale.LC_ALL, ("en_US", "utf8"))
+        except:
+            pytest.skip('no en_US locale!')
+        else:
+            with cd(self.target_dir):
+                __main__.main(["build", "--invariant"])
+        finally:
+            try:
+                locale.setlocale(locale.LC_ALL, self.oldlocale)
+            except:
+                pass
+
+    @classmethod
+    def fill_site(self):
+        """Fill the site with demo content."""
+        self.init_command.copy_sample_site(self.target_dir)
+        self.init_command.create_configuration(self.target_dir)
+        os.system('rm "{0}/stories/creating-a-theme.rst" "{0}/stories/extending.txt" "{0}/stories/internals.txt" "{0}/stories/manual.rst" "{0}/stories/social_buttons.txt" "{0}/stories/theming.rst" "{0}/stories/upgrading-to-v6.txt"'.format(self.target_dir))
+
+    def test_invariance(self):
+        """Compare the output to the canonical output."""
+        if sys.version_info[0:2] != (2, 7):
+            pytest.skip('only python 2.7 is supported right now')
+        good_path = os.path.join(os.path.dirname(__file__), 'data', 'baseline{0[0]}.{0[1]}'.format(sys.version_info))
+        if not os.path.exists(good_path):
+            pytest.skip('no baseline found')
+        with cd(self.target_dir):
+            try:
+                diff = subprocess.check_output(['diff', '-ubwr', good_path, 'output'])
+                self.assertEqual(diff.strip(), '')
+            except subprocess.CalledProcessError as exc:
+                print('Unexplained diff for the invariance test. (-canonical +built)')
+                print(exc.output.decode('utf-8'))
+                self.assertEqual(exc.returncode, 0, 'Unexplained diff for the invariance test.')
 
 
 if __name__ == "__main__":

@@ -27,23 +27,31 @@
 """Markdown Extension for Nikola-specific post-processing"""
 from __future__ import unicode_literals
 import re
-from markdown.postprocessors import Postprocessor
-from markdown.extensions import Extension
+try:
+    from markdown.postprocessors import Postprocessor
+    from markdown.extensions import Extension
+except ImportError:
+    # No need to catch this, if you try to use this without Markdown,
+    # the markdown compiler will fail first
+    Postprocessor = Extension = object
+
+from nikola.plugin_categories import MarkdownExtension
+
+# FIXME: duplicated with listings.py
+CODERE = re.compile('<div class="codehilite"><pre>(.*?)</pre></div>', flags=re.MULTILINE | re.DOTALL)
 
 
 class NikolaPostProcessor(Postprocessor):
     def run(self, text):
         output = text
 
-        # python-markdown's highlighter uses the class 'codehilite' to wrap
-        # code, instead of the standard 'code'. None of the standard
-        # pygments stylesheets use this class, so swap it to be 'code'
-        output = re.sub(r'(<div[^>]+class="[^"]*)codehilite([^>]+)',
-                        r'\1code\2', output)
+        # python-markdown's highlighter uses <div class="codehilite"><pre>
+        # for code.  We switch it to reST's <pre class="code">.
+        output = CODERE.sub('<pre class="code literal-block">\\1</pre>', output)
         return output
 
 
-class NikolaExtension(Extension):
+class NikolaExtension(MarkdownExtension, Extension):
     def extendMarkdown(self, md, md_globals):
         pp = NikolaPostProcessor()
         md.postprocessors.add('nikola_post_processor', pp, '_end')

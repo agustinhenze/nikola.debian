@@ -51,6 +51,8 @@ class JinjaTemplates(TemplateSystem):
         if jinja2 is None:
             return
         self.lookup = jinja2.Environment()
+        self.lookup.trim_blocks = True
+        self.lookup.lstrip_blocks = True
         self.lookup.filters['tojson'] = json.dumps
         self.lookup.globals['enumerate'] = enumerate
 
@@ -58,7 +60,19 @@ class JinjaTemplates(TemplateSystem):
         """Create a template lookup."""
         if jinja2 is None:
             req_missing(['jinja2'], 'use this theme')
-        self.lookup.loader = jinja2.FileSystemLoader(directories,
+        self.directories = directories
+        self.create_lookup()
+
+    def inject_directory(self, directory):
+        """if it's not there, add the directory to the lookup with lowest priority, and
+        recreate the lookup."""
+        if directory not in self.directories:
+            self.directories.append(directory)
+            self.create_lookup()
+
+    def create_lookup(self):
+        """Create a template lookup object."""
+        self.lookup.loader = jinja2.FileSystemLoader(self.directories,
                                                      encoding='utf-8')
 
     def set_site(self, site):

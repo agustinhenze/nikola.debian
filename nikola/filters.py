@@ -29,7 +29,7 @@
 from .utils import req_missing
 from functools import wraps
 import os
-import re
+import codecs
 import shutil
 import subprocess
 import tempfile
@@ -41,10 +41,10 @@ except ImportError:
     typo = None  # NOQA
 
 
-def apply_to_file(f):
-    """Takes a function f that transforms a data argument, and returns
+def apply_to_binary_file(f):
+    """Take a function f that transforms a data argument, and returns
     a function that takes a filename and applies f to the contents,
-    in place."""
+    in place.  Reads files in binary mode."""
     @wraps(f)
     def f_in_file(fname):
         with open(fname, 'rb') as inf:
@@ -56,15 +56,30 @@ def apply_to_file(f):
     return f_in_file
 
 
+def apply_to_text_file(f):
+    """Take a function f that transforms a data argument, and returns
+    a function that takes a filename and applies f to the contents,
+    in place.  Reads files in UTF-8."""
+    @wraps(f)
+    def f_in_file(fname):
+        with codecs.open(fname, 'r', 'utf-8') as inf:
+            data = inf.read()
+        data = f(data)
+        with codecs.open(fname, 'w+', 'utf-8') as outf:
+            outf.write(data)
+
+    return f_in_file
+
+
 def list_replace(the_list, find, replacement):
-    "Replaces all occurrences of ``find`` with ``replacement`` in ``the_list``"
+    "Replace all occurrences of ``find`` with ``replacement`` in ``the_list``"
     for i, v in enumerate(the_list):
         if v == find:
             the_list[i] = replacement
 
 
 def runinplace(command, infile):
-    """Runs a command in-place on a file.
+    """Run a command in-place on a file.
 
     command is a string of the form: "commandname %1 %2" and
     it will be execed with infile as %1 and a temporary file
@@ -128,60 +143,15 @@ def jpegoptim(infile):
     return runinplace(r"jpegoptim -p --strip-all -q %1", infile)
 
 
-def tidy(inplace):
-    # Google site verifcation files are not HTML
-    if re.match(r"google[a-f0-9]+.html", os.path.basename(inplace)) \
-            and open(inplace).readline().startswith(
-                "google-site-verification:"):
-        return
-
-    # Tidy will give error exits, that we will ignore.
-    output = subprocess.check_output(
-        "tidy -m -w 90 --indent no --quote-marks"
-        "no --keep-time yes --tidy-mark no "
-        "--force-output yes '{0}'; exit 0".format(inplace), stderr=subprocess.STDOUT, shell=True)
-
-    for line in output.split("\n"):
-        if "Warning:" in line:
-            if '<meta> proprietary attribute "charset"' in line:
-                # We want to set it though.
-                continue
-            elif '<meta> lacks "content" attribute' in line:
-                # False alarm to me.
-                continue
-            elif '<div> anchor' in line and 'already defined' in line:
-                # Some seeming problem with JavaScript terminators.
-                continue
-            elif '<img> lacks "alt" attribute' in line:
-                # Happens in gallery code, probably can be tolerated.
-                continue
-            elif '<table> lacks "summary" attribute' in line:
-                # Happens for tables, TODO: Check this is normal.
-                continue
-            elif 'proprietary attribute "data-toggle"' in line or \
-                 'proprietary attribute "data-target"':
-                # Some of our own tricks
-                continue
-            else:
-                assert False, (inplace, line)
-        elif "Error:" in line:
-            if '<time> is not recognized' in line:
-                # False alarm, time is proper HTML5.
-                continue
-            else:
-                assert False, line
-
-
-@apply_to_file
+@apply_to_text_file
 def typogrify(data):
-    global typogrify_filter
     if typo is None:
-        req_missing(['typogrify', 'use the typogrify filter'])
+        req_missing(['typogrify'], 'use the typogrify filter')
 
     data = typo.amp(data)
     data = typo.widont(data)
     data = typo.smartypants(data)
     # Disabled because of typogrify bug where it breaks <title>
-    #data = typo.caps(data)
+    # data = typo.caps(data)
     data = typo.initial_quotes(data)
     return data

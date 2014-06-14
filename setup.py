@@ -12,32 +12,44 @@ import os
 import subprocess
 import sys
 import shutil
-
 from setuptools import setup
 from setuptools.command.install import install
+from setuptools.command.test import test as TestCommand
+
+
+class PyTest(TestCommand):
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = []
+        self.test_suite = True
+
+    def run_tests(self):
+        # import here, cause outside the eggs aren't loaded
+        import pytest
+        errno = pytest.main(self.test_args)
+        sys.exit(errno)
+
 
 with open('requirements.txt', 'r') as fh:
     dependencies = [l.strip() for l in fh]
 
-########### platform specific stuff #############
-import platform
-platform_system = platform.system()
+extras = {}
 
-scripts = ['scripts/nikola']
-# platform specific scripts
-if platform_system == "Windows":
-    scripts.append('scripts/nikola.bat')
+with open('requirements-extras.txt', 'r') as fh:
+    extras['extras'] = [l.strip() for l in fh][1:]
+    # Alternative name.
+    extras['full'] = extras['extras']
 
+with open('requirements-tests.txt', 'r') as fh:
+    extras['tests'] = [l.strip() for l in fh][1:]
+
+# ########## platform specific stuff #############
 if sys.version_info[0] == 2 and sys.version_info[1] < 6:
     raise Exception('Python 2 version < 2.6 is not supported')
 elif sys.version_info[0] == 3 and sys.version_info[1] < 3:
     raise Exception('Python 3 version < 3.3 is not supported')
 
 ##################################################
-
-if sys.version_info[0] == 2:
-    # in Python 3 this becomes a builtin, for Python 2 we need the backport
-    dependencies.append('configparser')
 
 # Provided as an attribute, so you can append to these instead
 # of replicating them:
@@ -62,42 +74,31 @@ def copy_messages():
         shutil.copytree(original_messages_directory, theme_messages_directory)
 
 
-def copy_symlinked_for_windows():
+def expands_symlinks_for_windows():
     """replaces the symlinked files with a copy of the original content.
 
     In windows (msysgit), a symlink is converted to a text file with a
     path to the file it points to. If not corrected, installing from a git
     clone will end with some files with bad content
 
-    After install the WC will be dirty (symlink markers rewroted with real
-    content)
+    After install the working copy  will be dirty (symlink markers rewroted with
+    real content)
     """
-
-    # essentially nikola.utils.should_fix_git_symlinked inlined, to not
-    # fiddle with sys.path / import unless really needed
     if sys.platform != 'win32':
-        return
-    path = (os.path.dirname(__file__) +
-            r'nikola\data\samplesite\stories\theming.rst')
-    try:
-        if os.path.getsize(path) < 200:
-            pass
-        else:
-            return
-    except Exception:
         return
 
     # apply the fix
-    localdir = os.path.dirname(__file__)
-    dst = os.path.join(localdir, 'nikola', 'data', 'samplesite')
-    src = dst
+    localdir = os.path.dirname(os.path.abspath(__file__))
     oldpath = sys.path[:]
     sys.path.insert(0, os.path.join(localdir, 'nikola'))
     winutils = __import__('winutils')
-    winutils.fix_git_symlinked(src, dst)
+    failures = winutils.fix_all_git_symlinked(localdir)
     sys.path = oldpath
     del sys.modules['winutils']
-    print('WARNING: your working copy is now dirty by changes in samplesite')
+    print('WARNING: your working copy is now dirty by changes in samplesite, sphinx and themes')
+    if failures:
+        raise Exception("Error: \n\tnot all symlinked files could be fixed." +
+                        "\n\tYour best bet is to start again from clean.")
 
 
 def install_manpages(root, prefix):
@@ -127,15 +128,30 @@ def install_manpages(root, prefix):
         print("Not installing the man pages:", e)
 
 
+def remove_old_files(self):
+    tree = os.path.join(self.install_lib, 'nikola')
+    tree2 = os.path.join('build', 'lib', 'nikola')
+    try:
+        shutil.rmtree(tree, ignore_errors=True)
+    except:
+        pass
+
+    try:
+        shutil.rmtree(tree2, ignore_errors=True)
+    except:
+        pass
+
+
 class nikola_install(install):
     def run(self):
-        copy_symlinked_for_windows()
+        expands_symlinks_for_windows()
+        remove_old_files(self)
         install.run(self)
         install_manpages(self.root, self.prefix)
 
 
 setup(name='Nikola',
-      version='6.4.0',
+      version='7.0.1',
       description='A modular, fast, simple, static website generator',
       long_description=open('README.rst').read(),
       author='Roberto Alsina and others',
@@ -144,45 +160,49 @@ setup(name='Nikola',
       packages=['nikola',
                 'nikola.plugins',
                 'nikola.plugins.command',
-                'nikola.plugins.command.planetoid',
                 'nikola.plugins.compile',
                 'nikola.plugins.compile.ipynb',
                 'nikola.plugins.compile.markdown',
                 'nikola.plugins.compile.rest',
                 'nikola.plugins.task',
-                'nikola.plugins.task.localsearch',
-                'nikola.plugins.task.mustache',
                 'nikola.plugins.task.sitemap',
                 'nikola.plugins.template',
                 ],
       license='MIT',
       keywords='website, static',
-      scripts=scripts,
-      classifiers=('Development Status :: 5 - Production/Stable',
-                   'Environment :: Console',
-                   'Environment :: Plugins',
-                   'Environment :: Web Environment',
-                   'Intended Audience :: End Users/Desktop',
-                   'License :: OSI Approved :: MIT License',
-                   'Operating System :: MacOS',
-                   'Operating System :: Microsoft :: Windows',
-                   'Operating System :: OS Independent',
-                   'Operating System :: POSIX',
-                   'Operating System :: Unix',
-                   'Programming Language :: Python',
-                   'Programming Language :: Python :: 2.6',
-                   'Programming Language :: Python :: 2.7',
-                   'Programming Language :: Python :: 3.3',
-                   'Topic :: Internet',
-                   'Topic :: Internet :: WWW/HTTP',
-                   'Topic :: Text Processing :: Markup'),
+      classifiers=(b'Development Status :: 5 - Production/Stable',
+                   b'Environment :: Console',
+                   b'Environment :: Plugins',
+                   b'Environment :: Web Environment',
+                   b'Intended Audience :: End Users/Desktop',
+                   b'License :: OSI Approved :: MIT License',
+                   b'Operating System :: MacOS',
+                   b'Operating System :: Microsoft :: Windows',
+                   b'Operating System :: OS Independent',
+                   b'Operating System :: POSIX',
+                   b'Operating System :: Unix',
+                   b'Programming Language :: Python',
+                   b'Programming Language :: Python :: 2.6',
+                   b'Programming Language :: Python :: 2.7',
+                   b'Programming Language :: Python :: 3.3',
+                   b'Programming Language :: Python :: 3.4',
+                   b'Topic :: Internet',
+                   b'Topic :: Internet :: WWW/HTTP',
+                   b'Topic :: Text Processing :: Markup'),
       install_requires=dependencies,
+      extras_require=extras,
+      tests_require=['pytest'],
       include_package_data=True,
-      cmdclass={'install': nikola_install},
+      cmdclass={'install': nikola_install, 'test': PyTest},
       data_files=[
               ('share/doc/nikola', [
                'docs/manual.txt',
                'docs/theming.txt',
                'docs/extending.txt']),
       ],
+      entry_points = {
+          'console_scripts': [
+              'nikola = nikola.__main__:main'
+          ]
+      },
       )

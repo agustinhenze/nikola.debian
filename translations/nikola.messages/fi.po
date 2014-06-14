@@ -4,15 +4,17 @@
 # 
 # Translators:
 # Translators:
+# Translators:
+# Translators:
 # Eero Kari <eero.kari@gmail.com>, 2013
-# Eero Kari <eero.kari@gmail.com>, 2013
+# Eero Kari <eero.kari@gmail.com>, 2013-2014
 msgid ""
 msgstr ""
 "Project-Id-Version: Nikola\n"
 "Report-Msgid-Bugs-To: ralsina@netmanagers.com.ar\n"
 "POT-Creation-Date: 2013-03-15 12:24-0300\n"
-"PO-Revision-Date: 2014-02-09 16:56+0000\n"
-"Last-Translator: Kwpolska <kwpolska@gmail.com>\n"
+"PO-Revision-Date: 2014-05-31 08:51+0000\n"
+"Last-Translator: Eero Kari <eero.kari@gmail.com>\n"
 "Language-Team: Finnish (http://www.transifex.com/projects/p/nikola/language/fi/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -35,6 +37,9 @@ msgstr "Kategoriat"
 msgid "Tags and Categories"
 msgstr "Tagit ja kategoriat"
 
+msgid "Comments"
+msgstr "Kommentit"
+
 msgid "Read more"
 msgstr "Lue lisää"
 
@@ -45,7 +50,7 @@ msgid "Next post"
 msgstr "Seuraava postaus"
 
 msgid "old posts, page %d"
-msgstr "vanhojen postauksien, sivu %d"
+msgstr "vanhoja postauksia, sivu %d"
 
 msgid "page %d"
 msgstr "sivu %d"
@@ -70,6 +75,9 @@ msgstr "Vanhempia postauksia"
 msgid "Also available in:"
 msgstr "Saatavilla myös:"
 
+msgid "Languages:"
+msgstr "Kielet:"
+
 msgid "Original site"
 msgstr "Alkuperäinen sivusto"
 
@@ -79,6 +87,9 @@ msgstr "Vanhempia postauksia"
 msgid "Archive"
 msgstr "Arkisto"
 
+msgid "Publication date"
+msgstr "Julkaisupäivämäärä"
+
 msgid "Posted:"
 msgstr "Postattu:"
 
@@ -86,7 +97,13 @@ msgid "Posts for {month} {year}"
 msgstr "Postauksia ajalle {month} {year}"
 
 msgid "Nothing found."
-msgstr ""
+msgstr "Ei hakutuloksia."
 
 msgid "No posts found."
+msgstr "Postauksia ei löytynyt."
+
+msgid "RSS feed"
+msgstr "RSS syöte"
+
+msgid "%d min remaining to read"
 msgstr ""

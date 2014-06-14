@@ -31,7 +31,6 @@ import os
 import sys
 import subprocess
 import time
-import pytz
 
 from blinker import signal
 
@@ -62,10 +61,10 @@ class CommandDeploy(Command):
 
         deploy_drafts = self.site.config.get('DEPLOY_DRAFTS', True)
         deploy_future = self.site.config.get('DEPLOY_FUTURE', False)
+        undeployed_posts = []
         if not (deploy_drafts and deploy_future):
             # Remove drafts and future posts
             out_dir = self.site.config['OUTPUT_FOLDER']
-            undeployed_posts = []
             self.site.scan_posts()
             for post in self.site.timeline:
                 if (not deploy_drafts and post.is_draft) or \
@@ -114,9 +113,6 @@ class CommandDeploy(Command):
 
         """
 
-        if undeployed is None:
-            undeployed = []
-
         event = {
             'last_deploy': last_deploy,
             'new_deploy': new_deploy,
@@ -124,11 +120,9 @@ class CommandDeploy(Command):
             'undeployed': undeployed
         }
 
-        tzinfo = pytz.timezone(self.site.config['TIMEZONE'])
-
         deployed = [
             entry for entry in self.site.timeline
-            if entry.date > (last_deploy.replace(tzinfo=tzinfo) if tzinfo else last_deploy) and entry not in undeployed
+            if entry.date > last_deploy.replace(tzinfo=self.site.tzinfo) and entry not in undeployed
         ]
 
         event['deployed'] = deployed
