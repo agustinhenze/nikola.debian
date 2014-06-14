@@ -4,13 +4,15 @@
 # 
 # Translators:
 # Translators:
+# Translators:
+# Translators:
 # seanpue <a@seanpue.com>, 2014
 msgid ""
 msgstr ""
 "Project-Id-Version: Nikola\n"
 "Report-Msgid-Bugs-To: ralsina@netmanagers.com.ar\n"
 "POT-Creation-Date: 2013-03-15 12:24-0300\n"
-"PO-Revision-Date: 2014-02-09 16:56+0000\n"
+"PO-Revision-Date: 2014-04-17 14:46+0000\n"
 "Last-Translator: Kwpolska <kwpolska@gmail.com>\n"
 "Language-Team: Hindi (http://www.transifex.com/projects/p/nikola/language/hi/)\n"
 "MIME-Version: 1.0\n"
@@ -33,6 +35,9 @@ msgstr "श्रेणियाँ"
 
 msgid "Tags and Categories"
 msgstr "टैग्स और श्रेणियाँ"
+
+msgid "Comments"
+msgstr ""
 
 msgid "Read more"
 msgstr "और पढ़िए"
@@ -69,6 +74,9 @@ msgstr "पिछली पोस्ट"
 msgid "Also available in:"
 msgstr "उपलब्ध भाषाएँ:"
 
+msgid "Languages:"
+msgstr ""
+
 msgid "Original site"
 msgstr "असली साइट"
 
@@ -77,6 +85,9 @@ msgstr "पुरानी पोस्टें"
 
 msgid "Archive"
 msgstr "आर्काइव"
+
+msgid "Publication date"
+msgstr ""
 
 msgid "Posted:"
 msgstr "पोस्टेड:"
@@ -88,4 +99,10 @@ msgid "Nothing found."
 msgstr ""
 
 msgid "No posts found."
+msgstr ""
+
+msgid "RSS feed"
+msgstr ""
+
+msgid "%d min remaining to read"
 msgstr ""

@@ -73,16 +73,15 @@ class Archive(Task):
                 context["permalink"] = self.site.link("archive", year, lang)
                 if not kw["create_monthly_archive"]:
                     template_name = "list_post.tmpl"
-                    post_list = [self.site.global_data[post] for post in posts]
-                    post_list.sort(key=lambda a: a.date)
+                    post_list = sorted(posts, key=lambda a: a.date)
                     post_list.reverse()
                     context["posts"] = post_list
                 else:  # Monthly archives, just list the months
-                    months = set([m.split('/')[1] for m in self.site.posts_per_month.keys() if m.startswith(str(year))])
+                    months = set([(m.split('/')[1], self.site.link("archive", m, lang)) for m in self.site.posts_per_month.keys() if m.startswith(str(year))])
                     months = sorted(list(months))
                     months.reverse()
                     template_name = "list.tmpl"
-                    context["items"] = [[nikola.utils.LocaleBorg().get_month_name(int(month), lang), month] for month in months]
+                    context["items"] = [[nikola.utils.LocaleBorg().get_month_name(int(month), lang), link] for month, link in months]
                     post_list = []
                 task = self.site.generic_post_list_renderer(
                     lang,
@@ -93,7 +92,12 @@ class Archive(Task):
                     context,
                 )
                 n = len(post_list) if 'posts' in context else len(months)
-                task_cfg = {1: task['uptodate'][0].config, 2: kw, 3: n}
+
+                deps_translatable = {}
+                for k in self.site._GLOBAL_CONTEXT_TRANSLATABLE:
+                    deps_translatable[k] = self.site.GLOBAL_CONTEXT[k](lang)
+
+                task_cfg = {1: task['uptodate'][0].config, 2: kw, 3: n, 4: deps_translatable}
                 task['uptodate'] = [config_changed(task_cfg)]
                 task['basename'] = self.name
                 yield task
@@ -106,8 +110,7 @@ class Archive(Task):
                     kw['output_folder'], self.site.path("archive", yearmonth,
                                                         lang))
                 year, month = yearmonth.split('/')
-                post_list = [self.site.global_data[post] for post in posts]
-                post_list.sort(key=lambda a: a.date)
+                post_list = sorted(posts, key=lambda a: a.date)
                 post_list.reverse()
                 context = {}
                 context["lang"] = lang
@@ -141,8 +144,8 @@ class Archive(Task):
                     kw['output_folder'], self.site.path("archive", None,
                                                         lang))
                 context["title"] = kw["messages"][lang]["Archive"]
-                context["items"] = [(year, self.site.link("archive", year, lang))
-                                    for year in years]
+                context["items"] = [(y, self.site.link("archive", y, lang))
+                                    for y in years]
                 context["permalink"] = self.site.link("archive", None, lang)
                 task = self.site.generic_post_list_renderer(
                     lang,

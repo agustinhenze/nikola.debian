@@ -41,16 +41,12 @@ except ImportError:
 from nikola.plugin_categories import PageCompiler
 from nikola.utils import makedirs, req_missing
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    OrderedDict = dict  # NOQA
-
 
 class CompileIPynb(PageCompiler):
     """Compile IPynb into HTML."""
 
     name = "ipynb"
+    supports_onefile = False
 
     def compile_html(self, source, dest, is_two_file=True):
         if flag is None:
@@ -66,19 +62,15 @@ class CompileIPynb(PageCompiler):
             (body, resources) = exportHtml.from_notebook_node(nb_json)
             out_file.write(body)
 
-    def create_post(self, path, onefile=False, is_page=False, **kw):
-        metadata = OrderedDict()
-        metadata.update(self.default_metadata)
-        metadata.update(kw)
-        d_name = os.path.dirname(path)
+    def create_post(self, path, **kw):
+        # content and onefile are ignored by ipynb.
+        kw.pop('content', None)
+        onefile = kw.pop('onefile', False)
+        kw.pop('is_page', False)
+
         makedirs(os.path.dirname(path))
-        meta_path = os.path.join(d_name, kw['slug'] + ".meta")
-        with codecs.open(meta_path, "wb+", "utf8") as fd:
-            fd.write('\n'.join((metadata['title'], metadata['slug'],
-                                metadata['date'], metadata['tags'],
-                                metadata['link'],
-                                metadata['description'], metadata['type'])))
-        print("Your {0}'s metadata is at: {1}".format('page' if is_page else 'post', meta_path))
+        if onefile:
+            raise Exception('The one-file format is not supported by this compiler.')
         with codecs.open(path, "wb+", "utf8") as fd:
             fd.write("""{
  "metadata": {

@@ -39,9 +39,15 @@ Basic Example:
 <p><audio src="http://archive.org/download/Rebeldes_Stereotipos/rs20120609_1.mp3"></audio></p>
 '''
 
-from markdown.extensions import Extension
-from markdown.inlinepatterns import Pattern
-from markdown.util import etree
+from nikola.plugin_categories import MarkdownExtension
+try:
+    from markdown.extensions import Extension
+    from markdown.inlinepatterns import Pattern
+    from markdown.util import etree
+except ImportError:
+    # No need to catch this, if you try to use this without Markdown,
+    # the markdown compiler will fail first
+    Pattern = Extension = object
 
 PODCAST_RE = r'\[podcast\](?P<url>.+)\[/podcast\]'
 
@@ -62,7 +68,7 @@ class PodcastPattern(Pattern):
         return audio_elem
 
 
-class PodcastExtension(Extension):
+class PodcastExtension(MarkdownExtension, Extension):
     def __init__(self, configs={}):
         # set extension defaults
         self.config = {}

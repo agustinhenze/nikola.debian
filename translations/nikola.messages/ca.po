@@ -4,6 +4,8 @@
 # 
 # Translators:
 # Translators:
+# Translators:
+# Translators:
 # ralsina <ralsina@netmanagers.com.ar>, 2013
 # ralsina <ralsina@netmanagers.com.ar>, 2013
 msgid ""
@@ -11,7 +13,7 @@ msgstr ""
 "Project-Id-Version: Nikola\n"
 "Report-Msgid-Bugs-To: ralsina@netmanagers.com.ar\n"
 "POT-Creation-Date: 2013-03-15 12:24-0300\n"
-"PO-Revision-Date: 2014-02-09 16:56+0000\n"
+"PO-Revision-Date: 2014-04-17 14:46+0000\n"
 "Last-Translator: Kwpolska <kwpolska@gmail.com>\n"
 "Language-Team: Catalan (http://www.transifex.com/projects/p/nikola/language/ca/)\n"
 "MIME-Version: 1.0\n"
@@ -33,6 +35,9 @@ msgid "Categories"
 msgstr ""
 
 msgid "Tags and Categories"
+msgstr ""
+
+msgid "Comments"
 msgstr ""
 
 msgid "Read more"
@@ -70,6 +75,9 @@ msgstr "Entrada anterior"
 msgid "Also available in:"
 msgstr "També disponibles en:"
 
+msgid "Languages:"
+msgstr ""
+
 msgid "Original site"
 msgstr "Lloc original"
 
@@ -78,6 +86,9 @@ msgstr "Entrades anteriors"
 
 msgid "Archive"
 msgstr "Arxiu"
+
+msgid "Publication date"
+msgstr ""
 
 msgid "Posted:"
 msgstr "Publicat:"
@@ -89,4 +100,10 @@ msgid "Nothing found."
 msgstr ""
 
 msgid "No posts found."
+msgstr ""
+
+msgid "RSS feed"
+msgstr ""
+
+msgid "%d min remaining to read"
 msgstr ""

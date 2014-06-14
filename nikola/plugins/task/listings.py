@@ -31,9 +31,15 @@ import os
 from pygments import highlight
 from pygments.lexers import get_lexer_for_filename, TextLexer
 from pygments.formatters import HtmlFormatter
+import natsort
+import re
 
 from nikola.plugin_categories import Task
 from nikola import utils
+
+
+# FIXME: (almost) duplicated with mdx_nikola.py
+CODERE = re.compile('<div class="code"><pre>(.*?)</pre></div>', flags=re.MULTILINE | re.DOTALL)
 
 
 class Listings(Task):
@@ -69,6 +75,9 @@ class Listings(Task):
                                                    linenos="table", nowrap=False,
                                                    lineanchors=utils.slugify(in_name),
                                                    anchorlinenos=True))
+                # the pygments highlighter uses <div class="codehilite"><pre>
+                # for code.  We switch it to reST's <pre class="code">.
+                code = CODERE.sub('<pre class="code literal-block">\\1</pre>', code)
                 title = os.path.basename(in_name)
             else:
                 code = ''
@@ -76,14 +85,27 @@ class Listings(Task):
             crumbs = utils.get_crumbs(os.path.relpath(out_name,
                                                       kw['output_folder']),
                                       is_file=True)
+            permalink = self.site.link(
+                'listing',
+                os.path.relpath(
+                    out_name,
+                    os.path.join(
+                        kw['output_folder'],
+                        kw['listings_folder'])))
+            if self.site.config['COPY_SOURCES']:
+                source_link = permalink[:-5]
+            else:
+                source_link = None
             context = {
                 'code': code,
                 'title': title,
                 'crumbs': crumbs,
+                'permalink': permalink,
                 'lang': kw['default_lang'],
-                'folders': folders,
-                'files': files,
+                'folders': natsort.natsorted(folders),
+                'files': natsort.natsorted(files),
                 'description': title,
+                'source_link': source_link,
             }
             self.site.render_template('listing.tmpl', out_name,
                                       context)
@@ -91,7 +113,21 @@ class Listings(Task):
         yield self.group_task()
 
         template_deps = self.site.template_system.template_deps('listing.tmpl')
-        for root, dirs, files in os.walk(kw['listings_folder']):
+        for root, dirs, files in os.walk(kw['listings_folder'], followlinks=True):
+            files = [f for f in files if os.path.splitext(f)[-1] not in ignored_extensions]
+
+            uptodate = {'c': self.site.GLOBAL_CONTEXT}
+
+            for k, v in self.site.GLOBAL_CONTEXT['template_hooks'].items():
+                uptodate['||template_hooks|{0}||'.format(k)] = v._items
+
+            for k in self.site._GLOBAL_CONTEXT_TRANSLATABLE:
+                uptodate[k] = self.site.GLOBAL_CONTEXT[k](kw['default_lang'])
+
+            uptodate2 = uptodate.copy()
+            uptodate2['f'] = files
+            uptodate2['d'] = dirs
+
             # Render all files
             out_name = os.path.join(
                 kw['output_folder'],
@@ -105,8 +141,7 @@ class Listings(Task):
                 'actions': [(render_listing, [None, out_name, dirs, files])],
                 # This is necessary to reflect changes in blog title,
                 # sidebar links, etc.
-                'uptodate': [utils.config_changed(
-                    self.site.GLOBAL_CONTEXT)],
+                'uptodate': [utils.config_changed(uptodate2)],
                 'clean': True,
             }
             for f in files:
@@ -126,11 +161,25 @@ class Listings(Task):
                     'actions': [(render_listing, [in_name, out_name])],
                     # This is necessary to reflect changes in blog title,
                     # sidebar links, etc.
-                    'uptodate': [utils.config_changed(
-                        self.site.GLOBAL_CONTEXT)],
+                    'uptodate': [utils.config_changed(uptodate)],
                     'clean': True,
                 }
+                if self.site.config['COPY_SOURCES']:
+                    out_name = os.path.join(
+                        kw['output_folder'],
+                        root,
+                        f)
+                    yield {
+                        'basename': self.name,
+                        'name': out_name,
+                        'file_dep': [in_name],
+                        'targets': [out_name],
+                        'actions': [(utils.copy_file, [in_name, out_name])],
+                        'clean': True,
+                    }
 
     def listing_path(self, name, lang):
-        return [_f for _f in [self.site.config['LISTINGS_FOLDER'], name +
-                              '.html'] if _f]
+        if not name.endswith('.html'):
+            name += '.html'
+        path_parts = [self.site.config['LISTINGS_FOLDER']] + list(os.path.split(name))
+        return [_f for _f in path_parts if _f]

@@ -28,6 +28,10 @@ from __future__ import print_function, unicode_literals
 from operator import attrgetter
 import os
 import shutil
+try:
+    import readline  # NOQA
+except ImportError:
+    pass  # This is only so raw_input/input does nicer things if it's available
 import sys
 import traceback
 
@@ -40,39 +44,45 @@ from doit.cmd_run import Run as DoitRun
 from doit.cmd_clean import Clean as DoitClean
 from doit.cmd_auto import Auto as DoitAuto
 from logbook import NullHandler
+from blinker import signal
 
 from . import __version__
+from .plugin_categories import Command
 from .nikola import Nikola
-from .utils import _reload, sys_decode, get_root_dir, LOGGER, STRICT_HANDLER
-
+from .utils import _reload, sys_decode, get_root_dir, req_missing, LOGGER, STRICT_HANDLER, ColorfulStderrHandler
 
 config = {}
 
 
-def main(args):
+def main(args=None):
+    colorful = False
+    if sys.stderr.isatty() and os.name != 'nt':
+        colorful = True
+
+    ColorfulStderrHandler._colorful = colorful
+
+    if args is None:
+        args = sys.argv[1:]
     quiet = False
-    if len(args) > 0 and args[0] == 'build' and '--strict' in args:
+    if len(args) > 0 and args[0] == b'build' and b'--strict' in args:
         LOGGER.notice('Running in strict mode')
         STRICT_HANDLER.push_application()
-    if len(args) > 0 and args[0] == 'build' and '-q' in args or '--quiet' in args:
+    if len(args) > 0 and args[0] == b'build' and b'-q' in args or b'--quiet' in args:
         nullhandler = NullHandler()
         nullhandler.push_application()
         quiet = True
     global config
 
-    colorful = False
-    if sys.stderr.isatty():
-        colorful = True
-        try:
-            import colorama
-            colorama.init()
-        except ImportError:
-            if os.name == 'nt':
-                colorful = False
-
-    root = get_root_dir()
-    if root:
-        os.chdir(root)
+    # Those commands do not require a `conf.py`.  (Issue #1132)
+    # Moreover, actually having one somewhere in the tree can be bad, putting
+    # the output of that command (the new site) in an unknown directory that is
+    # not the current working directory.  (does not apply to `version`)
+    argname = args[0] if len(args) > 0 else None
+    # FIXME there are import plugins in the repo, so how do we handle this?
+    if argname and argname not in ['init', 'version'] and not argname.startswith('import_'):
+        root = get_root_dir()
+        if root:
+            os.chdir(root)
 
     sys.path.append('')
     try:
@@ -86,18 +96,46 @@ def main(args):
             sys.exit(1)
         config = {}
 
-    config.update({'__colorful__': colorful})
+    invariant = False
+
+    if len(args) > 0 and args[0] == b'build' and b'--invariant' in args:
+        try:
+            import freezegun
+            freeze = freezegun.freeze_time("2014-01-01")
+            freeze.start()
+            invariant = True
+        except ImportError:
+            req_missing(['freezegun'], 'perform invariant builds')
+
+    if config:
+        if os.path.exists('plugins') and not os.path.exists('plugins/__init__.py'):
+            with open('plugins/__init__.py', 'w') as fh:
+                fh.write('# Plugin modules go here.')
+
+    config['__colorful__'] = colorful
+    config['__invariant__'] = invariant
+    config['__quiet__'] = quiet
 
     site = Nikola(**config)
-    return DoitNikola(site, quiet).run(args)
+    _ = DoitNikola(site, quiet).run(args)
+
+    if site.invariant:
+        freeze.stop()
+    return _
 
 
 class Help(DoitHelp):
-    """show Nikola usage instead of doit """
+    """show Nikola usage."""
 
     @staticmethod
     def print_usage(cmds):
         """print nikola "usage" (basic help) instructions"""
+        # Remove 'run'.  Nikola uses 'build', though we support 'run' for
+        # people used to it (eg. doit users).
+        # WARNING: 'run' is the vanilla doit command, without support for
+        #          --strict, --invariant and --quiet.
+        del cmds['run']
+
         print("Nikola is a tool to create static websites and blogs. For full documentation and more information, please visit http://getnikola.com/\n\n")
         print("Available commands:")
         for cmd in sorted(cmds.values(), key=attrgetter('name')):
@@ -119,6 +157,15 @@ class Build(DoitRun):
                 'default': False,
                 'type': bool,
                 'help': "Fail on things that would normally be warnings.",
+            }
+        )
+        opts.append(
+            {
+                'name': 'invariant',
+                'long': 'invariant',
+                'default': False,
+                'type': bool,
+                'help': "Generate invariant output (for testing only!).",
             }
         )
         opts.append(
@@ -165,6 +212,7 @@ class NikolaTaskLoader(TaskLoader):
         else:
             DOIT_CONFIG = {
                 'reporter': ExecutedOnlyReporter,
+                'outfile': sys.stderr,
             }
         DOIT_CONFIG['default_tasks'] = ['render_site', 'post_render']
         tasks = generate_tasks(
@@ -173,6 +221,7 @@ class NikolaTaskLoader(TaskLoader):
         latetasks = generate_tasks(
             'post_render',
             self.nikola.gen_tasks('post_render', "LateTask", 'Group of tasks to be executes after site is rendered.'))
+        signal('initialized').send(self.nikola)
         return tasks + latetasks, DOIT_CONFIG
 
 
@@ -183,13 +232,14 @@ class DoitNikola(DoitMain):
 
     def __init__(self, nikola, quiet=False):
         self.nikola = nikola
+        nikola.doit = self
         self.task_loader = self.TASK_LOADER(nikola, quiet)
 
     def get_commands(self):
         # core doit commands
         cmds = DoitMain.get_commands(self)
         # load nikola commands
-        for name, cmd in self.nikola.commands.items():
+        for name, cmd in self.nikola._commands.items():
             cmds[name] = cmd
         return cmds
 
@@ -198,21 +248,36 @@ class DoitNikola(DoitMain):
         args = self.process_args(cmd_args)
         args = [sys_decode(arg) for arg in args]
 
-        if len(args) == 0 or any(arg in ["--help", '-h'] for arg in args):
+        if len(args) == 0:
             cmd_args = ['help']
             args = ['help']
-            # Hide run because Nikola uses build
-            sub_cmds.pop('run')
-        if len(args) == 0 or any(arg in ["--version", '-V'] for arg in args):
+
+        if '--help' in args or '-h' in args:
+            new_cmd_args = ['help'] + cmd_args
+            new_args = ['help'] + args
+
+            cmd_args = []
+            args = []
+
+            for arg in new_cmd_args:
+                if arg not in ('--help', '-h'):
+                    cmd_args.append(arg)
+            for arg in new_args:
+                if arg not in ('--help', '-h'):
+                    args.append(arg)
+
+        if any(arg in ("--version", '-V') for arg in args):
             cmd_args = ['version']
             args = ['version']
-        if len(args) == 0 or args[0] not in sub_cmds.keys() or \
-                args[0] == 'build':
-            # Check for conf.py before launching run
+        if args[0] not in sub_cmds.keys():
+            LOGGER.error("Unknown command {0}".format(args[0]))
+            return False
+        if not isinstance(sub_cmds[args[0]], (Command, Help)):  # Is a doit command
             if not self.nikola.configured:
                 LOGGER.error("This command needs to run inside an "
                              "existing Nikola site.")
                 return False
+
         return super(DoitNikola, self).run(cmd_args)
 
     @staticmethod

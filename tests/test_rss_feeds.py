@@ -15,18 +15,21 @@ import os
 import re
 import unittest
 
+import dateutil.tz
+from lxml import etree
 import mock
 
-from lxml import etree
 from .base import LocaleSupportInTesting
-
 import nikola
 
 fake_conf = defaultdict(str)
 fake_conf['TIMEZONE'] = 'UTC'
+fake_conf['__tzinfo__'] = dateutil.tz.tzutc()
 fake_conf['DEFAULT_LANG'] = 'en'
 fake_conf['TRANSLATIONS'] = {'en': ''}
 fake_conf['BASE_URL'] = 'http://some.blog/'
+fake_conf['BLOG_AUTHOR'] = nikola.nikola.utils.TranslatableSetting('BLOG_AUTHOR', 'Nikola Tesla', ['en'])
+fake_conf['TRANSLATIONS_PATTERN'] = '{path}.{lang}.{ext}'
 
 
 class FakeCompiler(object):
@@ -71,7 +74,8 @@ class RSSFeedTest(unittest.TestCase):
                                                                  [example_post,
                                                                   ],
                                                                  'testfeed.rss',
-                                                                 True)
+                                                                 True,
+                                                                 False)
 
                     opener_mock.assert_called_once_with(
                         'testfeed.rss', 'wb+', 'utf-8')

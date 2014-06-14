@@ -26,10 +26,11 @@
 
 """Utility functions."""
 
-from __future__ import print_function, unicode_literals
+from __future__ import print_function, unicode_literals, absolute_import
 from collections import defaultdict, Callable
 import calendar
 import datetime
+import dateutil.tz
 import hashlib
 import locale
 import logging
@@ -39,17 +40,18 @@ import json
 import shutil
 import subprocess
 import sys
-from zipfile import ZipFile as zip
+from zipfile import ZipFile as zipf
 try:
     from imp import reload
 except ImportError:
     pass
 
+import dateutil.parser
+import dateutil.tz
 import logbook
 from logbook.more import ExceptionHandler, ColorizedStderrHandler
-import pytz
 
-from . import DEBUG
+from nikola import DEBUG
 
 
 class ApplicationWarning(Exception):
@@ -70,29 +72,65 @@ def get_logger(name, handlers):
     l = logbook.Logger(name)
     for h in handlers:
         if isinstance(h, list):
-            l.handlers += h
+            l.handlers = h
         else:
-            l.handlers.append(h)
+            l.handlers = [h]
     return l
 
 
 STDERR_HANDLER = [ColorfulStderrHandler(
-    level=logbook.NOTICE if not DEBUG else logbook.DEBUG,
+    level=logbook.INFO if not DEBUG else logbook.DEBUG,
     format_string=u'[{record.time:%Y-%m-%dT%H:%M:%SZ}] {record.level_name}: {record.channel}: {record.message}'
 )]
 LOGGER = get_logger('Nikola', STDERR_HANDLER)
 STRICT_HANDLER = ExceptionHandler(ApplicationWarning, level='WARNING')
 
+# This will block out the default handler and will hide all unwanted
+# messages, properly.
+logbook.NullHandler().push_application()
+
 if DEBUG:
     logging.basicConfig(level=logging.DEBUG)
 else:
-    logging.basicConfig(level=logging.WARNING)
+    logging.basicConfig(level=logging.INFO)
+
+
+import warnings
+
+
+def showwarning(message, category, filename, lineno, file=None, line=None):
+    """Show a warning (from the warnings subsystem) to the user."""
+    try:
+        n = category.__name__
+    except AttributeError:
+        n = str(category)
+    get_logger(n, STDERR_HANDLER).warn('{0}:{1}: {2}'.format(filename, lineno, message))
+
+warnings.showwarning = showwarning
 
 
 def req_missing(names, purpose, python=True, optional=False):
-    """Log that we are missing some requirements."""
+    """Log that we are missing some requirements.
+
+    `names` is a list/tuple/set of missing things.
+    `purpose` is a string, specifying the use of the missing things.
+              It completes the sentence:
+                  In order to {purpose}, you must install ...
+    `python` specifies whether the requirements are Python packages
+                               or other software.
+    `optional` specifies whether the things are required
+                                 (this is an error and we exit with code 5)
+                                 or not (this is just a warning).
+
+    Returns the message shown to the user (which you can usually discard).
+    If no names are specified, False is returned and nothing is shown
+    to the user.
+
+    """
     if not (isinstance(names, tuple) or isinstance(names, list) or isinstance(names, set)):
         names = (names,)
+    if not names:
+        return False
     if python:
         whatarethey_s = 'Python package'
         whatarethey_p = 'Python packages'
@@ -121,6 +159,7 @@ if sys.version_info[0] == 3:
     bytes_str = bytes
     unicode_str = str
     unichr = chr
+    raw_input = input
     from imp import reload as _reload
 else:
     bytes_str = str
@@ -130,6 +169,7 @@ else:
 
 from doit import tools
 from unidecode import unidecode
+from pkg_resources import resource_filename
 
 import PyRSS2Gen as rss
 
@@ -137,9 +177,13 @@ __all__ = ['get_theme_path', 'get_theme_chain', 'load_messages', 'copy_tree',
            'copy_file', 'slugify', 'unslugify', 'to_datetime', 'apply_filters',
            'config_changed', 'get_crumbs', 'get_tzname', 'get_asset_path',
            '_reload', 'unicode_str', 'bytes_str', 'unichr', 'Functionary',
-           'LocaleBorg', 'sys_encode', 'sys_decode', 'makedirs',
-           'get_parent_theme_name', 'ExtendedRSS2', 'demote_headers',
-           'get_translation_candidate']
+           'TranslatableSetting', 'TemplateHookRegistry', 'LocaleBorg',
+           'sys_encode', 'sys_decode', 'makedirs', 'get_parent_theme_name',
+           'demote_headers', 'get_translation_candidate', 'write_metadata',
+           'ask', 'ask_yesno']
+
+# Are you looking for 'generic_rss_renderer'?
+# It's defined in nikola.nikola.Nikola (the site object).
 
 
 ENCODING = sys.getfilesystemencoding() or sys.stdin.encoding
@@ -185,10 +229,256 @@ class Functionary(defaultdict):
         return self[lang][key]
 
 
+class TranslatableSetting(object):
+
+    """
+    A setting that can be translated.
+
+    You can access it via: SETTING(lang).  You can omit lang, in which
+    case Nikola will ask LocaleBorg, unless you set SETTING.lang,
+    which overrides that call.
+
+    You can also stringify the setting and you will get something
+    sensible (in what LocaleBorg claims the language is, can also be
+    overriden by SETTING.lang). Note that this second method is
+    deprecated.  It is kept for backwards compatibility and
+    safety.  It is not guaranteed.
+
+    The underlying structure is a defaultdict.  The language that
+    is the default value of the dict is provided with __init__().
+    If you need access the underlying dict (you generally don’t,
+    """
+
+    # WARNING: This is generally not used and replaced with a call to
+    #          LocaleBorg().  Set this to a truthy value to override that.
+    lang = None
+
+    # Note that this setting is global.  DO NOT set on a per-instance basis!
+    default_lang = 'en'
+
+    def __getattribute__(self, attr):
+        """Return attributes, falling back to string attributes."""
+        try:
+            return super(TranslatableSetting, self).__getattribute__(attr)
+        except AttributeError:
+            return self().__getattribute__(attr)
+
+    def __dir__(self):
+        return list(set(self.__dict__).union(set(dir(str))))
+
+    def __init__(self, name, inp, translations):
+        """Initialize a translated setting.
+
+        Valid inputs include:
+
+        * a string               -- the same will be used for all languages
+        * a dict ({lang: value}) -- each language will use the value specified;
+                                    if there is none, default_lang is used.
+
+        """
+        self.name = name
+        self._inp = inp
+        self.translations = translations
+        self.overriden_default = False
+        self.values = defaultdict()
+
+        if isinstance(inp, dict):
+            self.translated = True
+            self.values.update(inp)
+            if self.default_lang not in self.values.keys():
+                self.default_lang = list(self.values.keys())[0]
+                self.overridden_default = True
+            self.values.default_factory = lambda: self.values[self.default_lang]
+            for k in translations.keys():
+                if k not in self.values.keys():
+                    self.values[k] = inp[self.default_lang]
+        else:
+            self.translated = False
+            self.values[self.default_lang] = inp
+            self.values.default_factory = lambda: inp
+
+    def get_lang(self):
+        """Return the language that should be used to retrieve settings."""
+        if self.lang:
+            return self.lang
+        elif not self.translated:
+            return self.default_lang
+        else:
+            try:
+                return LocaleBorg().current_lang
+            except AttributeError:
+                return self.default_lang
+
+    def __call__(self, lang=None):
+        """
+        Return the value in the requested language.
+
+        While lang is None, self.lang (currently set language) is used.
+        Otherwise, the standard algorithm is used (see above).
+
+        """
+        if lang is None:
+            return self.values[self.get_lang()]
+        else:
+            return self.values[lang]
+
+    def __str__(self):
+        """Return the value in the currently set language.  (deprecated)"""
+        return self.values[self.get_lang()]
+
+    def __unicode__(self):
+        """Return the value in the currently set language.  (deprecated)"""
+        return self.values[self.get_lang()]
+
+    def __repr__(self):
+        """Provide a representation for programmers."""
+        return '<TranslatableSetting: {0!r}>'.format(self.name)
+
+    def format(self, *args, **kwargs):
+        """Format ALL the values in the setting the same way."""
+        for l in self.values:
+            self.values[l] = self.values[l].format(*args, **kwargs)
+        self.values.default_factory = lambda: self.values[self.default_lang]
+        return self
+
+    def langformat(self, formats):
+        """Format ALL the values in the setting, on a per-language basis."""
+        if not formats:
+            # Input is empty.
+            return self
+        else:
+            # This is a little tricky.
+            # Basically, we have some things that may very well be dicts.  Or
+            # actually, TranslatableSettings in the original unprocessed dict
+            # form.  We need to detect them.
+
+            # First off, we need to check what languages we have and what
+            # should we use as the default.
+            keys = list(formats)
+            if self.default_lang in keys:
+                d = formats[self.default_lang]
+            else:
+                d = formats[keys[0]]
+            # Discovering languages of the settings here.
+            langkeys = []
+            for f in formats.values():
+                for a in f[0] + tuple(f[1].values()):
+                    if isinstance(a, dict):
+                        langkeys += list(a)
+            # Now that we know all this, we go through all the languages we have.
+            allvalues = set(keys + langkeys + list(self.values))
+            for l in allvalues:
+                if l in keys:
+                    oargs, okwargs = formats[l]
+                else:
+                    oargs, okwargs = d
+
+                args = []
+                kwargs = {}
+
+                for a in oargs:
+                    # We create temporary TranslatableSettings and replace the
+                    # values with them.
+                    if isinstance(a, dict):
+                        a = TranslatableSetting('NULL', a)
+                        args.append(a(l))
+                    else:
+                        args.append(a)
+
+                for k, v in okwargs.items():
+                    if isinstance(v, dict):
+                        v = TranslatableSetting('NULL', v)
+                        kwargs.update({k: v(l)})
+                    else:
+                        kwargs.update({k: v})
+
+                self.values[l] = self.values[l].format(*args, **kwargs)
+                self.values.default_factory = lambda: self.values[self.default_lang]
+
+        return self
+
+    def __getitem__(self, key):
+        """Provide an alternate interface via __getitem__."""
+        return self.values[key]
+
+    def __setitem__(self, key, value):
+        """Set values for translations."""
+        self.values[key] = value
+
+    def __eq__(self, other):
+        """Test whether two TranslatableSettings are equal."""
+        return self.values == other.values
+
+    def __ne__(self, other):
+        """Test whether two TranslatableSettings are inequal."""
+        return self.values != other.values
+
+
+class TemplateHookRegistry(object):
+
+    """
+    A registry for template hooks.
+
+    Usage:
+
+    >>> r = TemplateHookRegistry('foo', None)
+    >>> r.append('Hello!')
+    >>> r.append(lambda x: 'Hello ' + x + '!', False, 'world')
+    >>> str(r())  # str() call is not recommended in real use
+    'Hello!\\nHello world!'
+    >>>
+    """
+
+    def __init__(self, name, site):
+        """Initialize a hook registry."""
+        self._items = []
+        self.name = name
+        self.site = site
+        self.context = None
+
+    def generate(self):
+        """Generate items."""
+        for c, inp, site, args, kwargs in self._items:
+            if c:
+                if site:
+                    kwargs['site'] = self.site
+                    kwargs['context'] = self.context
+                yield inp(*args, **kwargs)
+            else:
+                yield inp
+
+    def __call__(self):
+        """Return items, in a string, separated by newlines."""
+        return '\n'.join(self.generate())
+
+    def append(self, inp, wants_site_and_context=False, *args, **kwargs):
+        """
+        Register an item.
+
+        `inp` can be a string or a callable returning one.
+        `wants_site` tells whether there should be a `site` keyword
+                     argument provided, for accessing the site.
+
+        Further positional and keyword arguments are passed as-is to the
+        callable.
+
+        `wants_site`, args and kwargs are ignored (but saved!) if `inp`
+        is not callable.  Callability of `inp` is determined only once.
+        """
+        c = callable(inp)
+        self._items.append((c, inp, wants_site_and_context, args, kwargs))
+
+    def __hash__(self):
+        return config_changed({self.name: self._items})
+
+    def __str__(self):
+        return '<TemplateHookRegistry: {0}>'.format(self._items)
+
+
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
         try:
-            return json.JSONEncoder.default(self, obj)
+            return super(CustomEncoder, self).default(obj)
         except TypeError:
             s = repr(obj).split('0x', 1)[0]
             return s
@@ -206,7 +496,9 @@ class config_changed(tools.config_changed):
                 byte_data = data.encode("utf-8")
             else:
                 byte_data = data
-            return hashlib.md5(byte_data).hexdigest()
+            digest = hashlib.md5(byte_data).hexdigest()
+            # LOGGER.debug('{{"{0}": {1}}}'.format(digest, byte_data))
+            return digest
         else:
             raise Exception('Invalid type of config_changed parameter -- got '
                             '{0}, must be string or dict'.format(type(
@@ -217,24 +509,23 @@ class config_changed(tools.config_changed):
                                                            cls=CustomEncoder))
 
 
-def get_theme_path(theme):
+def get_theme_path(theme, _themes_dir='themes'):
     """Given a theme name, returns the path where its files are located.
 
     Looks in ./themes and in the place where themes go when installed.
     """
-    dir_name = os.path.join('themes', theme)
+    dir_name = os.path.join(_themes_dir, theme)
     if os.path.isdir(dir_name):
         return dir_name
-    dir_name = os.path.join(os.path.dirname(__file__),
-                            'data', 'themes', theme)
+    dir_name = resource_filename('nikola', os.path.join('data', 'themes', theme))
     if os.path.isdir(dir_name):
         return dir_name
     raise Exception("Can't find theme '{0}'".format(theme))
 
 
-def get_template_engine(themes):
+def get_template_engine(themes, _themes_dir='themes'):
     for theme_name in themes:
-        engine_path = os.path.join(get_theme_path(theme_name), 'engine')
+        engine_path = os.path.join(get_theme_path(theme_name, _themes_dir), 'engine')
         if os.path.isfile(engine_path):
             with open(engine_path) as fd:
                 return fd.readlines()[0].strip()
@@ -242,20 +533,20 @@ def get_template_engine(themes):
     return 'mako'
 
 
-def get_parent_theme_name(theme_name):
-    parent_path = os.path.join(get_theme_path(theme_name), 'parent')
+def get_parent_theme_name(theme_name, _themes_dir='themes'):
+    parent_path = os.path.join(get_theme_path(theme_name, _themes_dir), 'parent')
     if os.path.isfile(parent_path):
         with open(parent_path) as fd:
             return fd.readlines()[0].strip()
     return None
 
 
-def get_theme_chain(theme):
+def get_theme_chain(theme, _themes_dir='themes'):
     """Create the full theme inheritance chain."""
     themes = [theme]
 
     while True:
-        parent = get_parent_theme_name(themes[-1])
+        parent = get_parent_theme_name(themes[-1], _themes_dir)
         # Avoid silly loops
         if parent is None or parent in themes:
             break
@@ -264,6 +555,15 @@ def get_theme_chain(theme):
 
 
 warned = []
+
+
+class LanguageNotFoundError(Exception):
+    def __init__(self, lang, orig):
+        self.lang = lang
+        self.orig = orig
+
+    def __str__(self):
+        return 'cannot find language {0}'.format(self.lang)
 
 
 def load_messages(themes, translations, default_lang):
@@ -281,18 +581,23 @@ def load_messages(themes, translations, default_lang):
         sys.path.insert(0, msg_folder)
         english = __import__('messages_en')
         for lang in list(translations.keys()):
-            # If we don't do the reload, the module is cached
-            translation = __import__('messages_' + lang)
-            reload(translation)
-            if sorted(translation.MESSAGES.keys()) !=\
-                    sorted(english.MESSAGES.keys()) and \
-                    lang not in warned:
-                warned.append(lang)
-                LOGGER.warn("Incomplete translation for language "
-                            "'{0}'.".format(lang))
-            messages[lang].update(english.MESSAGES)
-            messages[lang].update(translation.MESSAGES)
-            del(translation)
+            try:
+                translation = __import__('messages_' + lang)
+                # If we don't do the reload, the module is cached
+                reload(translation)
+                if sorted(translation.MESSAGES.keys()) !=\
+                        sorted(english.MESSAGES.keys()) and \
+                        lang not in warned:
+                    warned.append(lang)
+                    LOGGER.warn("Incomplete translation for language "
+                                "'{0}'.".format(lang))
+                messages[lang].update(english.MESSAGES)
+                for k, v in translation.MESSAGES.items():
+                    if v:
+                        messages[lang][k] = v
+                del(translation)
+            except ImportError as orig:
+                raise LanguageNotFoundError(lang, orig)
     sys.path = oldpath
     return messages
 
@@ -314,7 +619,7 @@ def copy_tree(src, dst, link_cutoff=None):
     """
     ignore = set(['.svn'])
     base_len = len(src.split(os.sep))
-    for root, dirs, files in os.walk(src):
+    for root, dirs, files in os.walk(src, followlinks=True):
         root_parts = root.split(os.sep)
         if set(root_parts) & ignore:
             continue
@@ -325,12 +630,8 @@ def copy_tree(src, dst, link_cutoff=None):
                 continue
             dst_file = os.path.join(dst_dir, src_name)
             src_file = os.path.join(root, src_name)
-            if sys.version_info[0] == 2:
-                # Python2 prefers encoded str here
-                dst_file = sys_encode(dst_file)
-                src_file = sys_encode(src_file)
             yield {
-                'name': str(dst_file),
+                'name': dst_file,
                 'file_dep': [src_file],
                 'targets': [dst_file],
                 'actions': [(copy_file, (src_file, dst_file, link_cutoff))],
@@ -397,11 +698,14 @@ def slugify(value):
     return _slugify_hyphenate_re.sub('-', value)
 
 
-def unslugify(value):
+def unslugify(value, discard_numbers=True):
+    """Given a slug string (as a filename), return a human readable string.
+
+    If discard_numbers is True, numbers right at the beginning of input
+    will be removed.
     """
-    Given a slug string (as a filename), return a human readable string
-    """
-    value = re.sub('^[0-9]+', '', value)
+    if discard_numbers:
+        value = re.sub('^[0-9]+', '', value)
     value = re.sub('([_\-\.])', ' ', value)
     value = value.strip().capitalize()
     return value
@@ -418,55 +722,31 @@ def extract_all(zipfile, path='themes'):
     pwd = os.getcwd()
     makedirs(path)
     os.chdir(path)
-    with zip(zipfile) as z:
-        namelist = z.namelist()
-        for f in namelist:
-            if f.endswith('/') and '..' in f:
-                raise UnsafeZipException('The zip file contains ".." and is '
-                                         'not safe to expand.')
-        for f in namelist:
-            if f.endswith('/'):
-                makedirs(f)
-            else:
-                z.extract(f)
+    z = zipf(zipfile)
+    namelist = z.namelist()
+    for f in namelist:
+        if f.endswith('/') and '..' in f:
+            raise UnsafeZipException('The zip file contains ".." and is '
+                                     'not safe to expand.')
+    for f in namelist:
+        if f.endswith('/'):
+            makedirs(f)
+        else:
+            z.extract(f)
+    z.close()
     os.chdir(pwd)
 
 
-# From https://github.com/lepture/liquidluck/blob/develop/liquidluck/utils.py
 def to_datetime(value, tzinfo=None):
-    if isinstance(value, datetime.datetime):
-        return value
-    supported_formats = [
-        '%Y/%m/%d %H:%M',
-        '%Y/%m/%d %H:%M:%S',
-        '%Y/%m/%d %I:%M:%S %p',
-        '%a %b %d %H:%M:%S %Y',
-        '%Y-%m-%d %H:%M:%S',
-        '%Y-%m-%d %H:%M',
-        '%Y-%m-%dT%H:%M',
-        '%Y%m%d %H:%M:%S',
-        '%Y%m%d %H:%M',
-        '%Y-%m-%d',
-        '%Y%m%d',
-    ]
-    for format in supported_formats:
-        try:
-            dt = datetime.datetime.strptime(value, format)
-            if tzinfo is None:
-                return dt
-            # Build a localized time by using a given time zone.
-            return tzinfo.localize(dt)
-        except ValueError:
-            pass
-    # So, let's try dateutil
     try:
-        from dateutil import parser
-        dt = parser.parse(value)
-        if tzinfo is None or dt.tzinfo:
-            return dt
-        return tzinfo.localize(dt)
-    except ImportError:
-        raise ValueError('Unrecognized date/time: {0!r}, try installing dateutil...'.format(value))
+        if not isinstance(value, datetime.datetime):
+            # dateutil does bad things with TZs like UTC-03:00.
+            dateregexp = re.compile(r' UTC([+-][0-9][0-9]:[0-9][0-9])')
+            value = re.sub(dateregexp, r'\1', value)
+            value = dateutil.parser.parse(value)
+        if not value.tzinfo:
+            value = value.replace(tzinfo=tzinfo)
+        return value
     except Exception:
         raise ValueError('Unrecognized date/time: {0!r}'.format(value))
 
@@ -474,28 +754,18 @@ def to_datetime(value, tzinfo=None):
 def get_tzname(dt):
     """
     Given a datetime value, find the name of the time zone.
-    """
-    try:
-        from dateutil import tz
-    except ImportError:
-        raise ValueError('Unrecognized date/time: {0!r}, try installing dateutil...'.format(dt))
 
-    tzoffset = dt.strftime('%z')
-    for name in pytz.common_timezones:
-        timezone = tz.gettz(name)
-        now = dt.now(timezone)
-        offset = now.strftime('%z')
-        if offset == tzoffset:
-            return name
-    raise ValueError('Unrecognized date/time: {0!r}'.format(dt))
+    DEPRECATED: This thing returned basically the 1st random zone
+    that matched the offset.
+    """
+    return dt.tzname()
 
 
 def current_time(tzinfo=None):
-    dt = datetime.datetime.utcnow()
     if tzinfo is not None:
-        dt = tzinfo.fromutc(dt)
+        dt = datetime.datetime.now(tzinfo)
     else:
-        dt = pytz.UTC.localize(dt)
+        dt = datetime.datetime.now(dateutil.tz.tzlocal())
     return dt
 
 
@@ -589,7 +859,7 @@ def get_crumbs(path, is_file=False, index_folder=None):
     return list(reversed(_crumbs))
 
 
-def get_asset_path(path, themes, files_folders={'files': ''}):
+def get_asset_path(path, themes, files_folders={'files': ''}, _themes_dir='themes'):
     """
     .. versionchanged:: 6.1.0
 
@@ -599,22 +869,22 @@ def get_asset_path(path, themes, files_folders={'files': ''}):
     If the asset is not provided by a theme, then it will be checked for
     in the FILES_FOLDERS
 
-    >>> print(get_asset_path('assets/css/rst.css', ['bootstrap', 'base'])) # doctest: +SKIP
-    [...]/nikola/data/themes/base/assets/css/rst.css
+    >>> print(get_asset_path('assets/css/rst.css', ['bootstrap', 'base']))
+    /.../nikola/data/themes/base/assets/css/rst.css
 
-    >>> print(get_asset_path('assets/css/theme.css', ['bootstrap', 'base'])) # doctest: +SKIP
-    [...]/nikola/data/themes/bootstrap/assets/css/theme.css
+    >>> print(get_asset_path('assets/css/theme.css', ['bootstrap', 'base']))
+    /.../nikola/data/themes/bootstrap/assets/css/theme.css
 
-    >>> print(get_asset_path('nikola.py', ['bootstrap', 'base'], {'nikola': ''})) # doctest: +SKIP
-    [...]/nikola/nikola.py
+    >>> print(get_asset_path('nikola.py', ['bootstrap', 'base'], {'nikola': ''}))
+    /.../nikola/nikola.py
 
-    >>> print(get_asset_path('nikola/nikola.py', ['bootstrap', 'base'], {'nikola':'nikola'})) # doctest: +SKIP
-    [...]/nikola/nikola.py
+    >>> print(get_asset_path('nikola/nikola.py', ['bootstrap', 'base'], {'nikola':'nikola'}))
+    None
 
     """
     for theme_name in themes:
         candidate = os.path.join(
-            get_theme_path(theme_name),
+            get_theme_path(theme_name, _themes_dir),
             path
         )
         if os.path.isfile(candidate):
@@ -626,6 +896,11 @@ def get_asset_path(path, themes, files_folders={'files': ''}):
 
     # whatever!
     return None
+
+
+class LocaleBorgUninitializedException(Exception):
+    def __init__(self):
+        super(LocaleBorgUninitializedException, self).__init__("Attempt to use LocaleBorg before initialization")
 
 
 class LocaleBorg(object):
@@ -662,6 +937,9 @@ class LocaleBorg(object):
     Examples: "Spanish", "French" can't do the full circle set / get / set
     That used to break calendar, but now seems is not the case, with month at least
     """
+
+    initialized = False
+
     @classmethod
     def initialize(cls, locales, initial_lang):
         """
@@ -696,7 +974,7 @@ class LocaleBorg(object):
 
     def __init__(self):
         if not self.initialized:
-            raise Exception("Attempt to use LocaleBorg before initialization")
+            raise LocaleBorgUninitializedException()
         self.__dict__ = self.__shared_state
 
     def set_locale(self, lang):
@@ -734,26 +1012,10 @@ class LocaleBorg(object):
         return s
 
 
-class ExtendedRSS2(rss.RSS2):
-    def publish_extensions(self, handler):
-        if self.self_url:
-            handler.startElement("atom:link", {
-                'href': self.self_url,
-                'rel': "self",
-                'type': "application/rss+xml"
-            })
-            handler.endElement("atom:link")
-
-
 class ExtendedItem(rss.RSSItem):
 
     def __init__(self, **kw):
-        author = kw.pop('author')
-        if author and '@' in author[1:]:  # Yes, this is a silly way to validate an email
-            kw['author'] = author
-            self.creator = None
-        else:
-            self.creator = author
+        self.creator = kw.pop('creator')
         # It's an old style class
         return rss.RSSItem.__init__(self, **kw)
 
@@ -824,9 +1086,196 @@ def get_root_dir():
 def get_translation_candidate(config, path, lang):
     """
     Return a possible path where we can find the translated version of some page
-    based on the TRANSLATIONS_PATTERN configuration variable
+    based on the TRANSLATIONS_PATTERN configuration variable.
+
+    >>> config = {'TRANSLATIONS_PATTERN': '{path}.{lang}.{ext}', 'DEFAULT_LANG': 'en', 'TRANSLATIONS': {'es':'1', 'en': 1}}
+    >>> print(get_translation_candidate(config, '*.rst', 'es'))
+    *.es.rst
+    >>> print(get_translation_candidate(config, 'fancy.post.rst', 'es'))
+    fancy.post.es.rst
+    >>> print(get_translation_candidate(config, '*.es.rst', 'es'))
+    *.es.rst
+    >>> print(get_translation_candidate(config, '*.es.rst', 'en'))
+    *.rst
+    >>> print(get_translation_candidate(config, 'cache/posts/fancy.post.es.html', 'en'))
+    cache/posts/fancy.post.html
+    >>> print(get_translation_candidate(config, 'cache/posts/fancy.post.html', 'es'))
+    cache/posts/fancy.post.es.html
+    >>> print(get_translation_candidate(config, 'cache/stories/charts.html', 'es'))
+    cache/stories/charts.es.html
+    >>> print(get_translation_candidate(config, 'cache/stories/charts.html', 'en'))
+    cache/stories/charts.html
+
+    >>> config = {'TRANSLATIONS_PATTERN': '{path}.{ext}.{lang}', 'DEFAULT_LANG': 'en', 'TRANSLATIONS': {'es':'1', 'en': 1}}
+    >>> print(get_translation_candidate(config, '*.rst', 'es'))
+    *.rst.es
+    >>> print(get_translation_candidate(config, '*.rst.es', 'es'))
+    *.rst.es
+    >>> print(get_translation_candidate(config, '*.rst.es', 'en'))
+    *.rst
+    >>> print(get_translation_candidate(config, 'cache/posts/fancy.post.html.es', 'en'))
+    cache/posts/fancy.post.html
+    >>> print(get_translation_candidate(config, 'cache/posts/fancy.post.html', 'es'))
+    cache/posts/fancy.post.html.es
+
     """
+    # FIXME: this is rather slow and this function is called A LOT
+    # Convert the pattern into a regexp
     pattern = config['TRANSLATIONS_PATTERN']
-    path, ext = os.path.splitext(path)
-    ext = ext[1:] if len(ext) > 0 else ext
-    return pattern.format(path=path, lang=lang, ext=ext)
+    # This will still break if the user has ?*[]\ in the pattern. But WHY WOULD HE?
+    pattern = pattern.replace('.', r'\.')
+    pattern = pattern.replace('{path}', '(?P<path>.+?)')
+    pattern = pattern.replace('{ext}', '(?P<ext>[^\./]+)')
+    pattern = pattern.replace('{lang}', '(?P<lang>{0})'.format('|'.join(config['TRANSLATIONS'].keys())))
+    m = re.match(pattern, path)
+    if m and all(m.groups()):  # It's a translated path
+        p, e, l = m.group('path'), m.group('ext'), m.group('lang')
+        if l == lang:  # Nothing to do
+            return path
+        elif lang == config['DEFAULT_LANG']:  # Return untranslated path
+            return '{0}.{1}'.format(p, e)
+        else:  # Change lang and return
+            return config['TRANSLATIONS_PATTERN'].format(path=p, ext=e, lang=lang)
+    else:
+        # It's a untranslated path, assume it's path.ext
+        p, e = os.path.splitext(path)
+        e = e[1:]  # No initial dot
+        if lang == config['DEFAULT_LANG']:  # Nothing to do
+            return path
+        else:  # Change lang and return
+            return config['TRANSLATIONS_PATTERN'].format(path=p, ext=e, lang=lang)
+
+
+def write_metadata(data):
+    """Write metadata."""
+    order = ('title', 'slug', 'date', 'tags', 'link', 'description', 'type')
+    f = '.. {0}: {1}'
+    meta = []
+    for k in order:
+        try:
+            meta.append(f.format(k, data.pop(k)))
+        except KeyError:
+            pass
+
+    # Leftover metadata (user-specified/non-default).
+    for k, v in data.items():
+        meta.append(f.format(k, v))
+
+    meta.append('')
+
+    return '\n'.join(meta)
+
+
+def ask(query, default=None):
+    """Ask a question."""
+    if default:
+        default_q = ' [{0}]'.format(default)
+    else:
+        default_q = ''
+    inp = raw_input("{query}{default_q}: ".format(query=query, default_q=default_q)).strip()
+    if inp or default is None:
+        return inp
+    else:
+        return default
+
+
+def ask_yesno(query, default=None):
+    """Ask a yes/no question."""
+    if default is None:
+        default_q = ' [y/n]'
+    elif default is True:
+        default_q = ' [Y/n]'
+    elif default is False:
+        default_q = ' [y/N]'
+    inp = raw_input("{query}{default_q} ".format(query=query, default_q=default_q)).strip()
+    if inp:
+        return inp.lower().startswith('y')
+    elif default is not None:
+        return default
+    else:
+        # Loop if no answer and no default.
+        return ask_yesno(query, default)
+
+
+from nikola.plugin_categories import Command
+from doit.cmdparse import CmdParse
+
+
+class CommandWrapper(object):
+    """Converts commands into functions."""
+
+    def __init__(self, cmd, commands_object):
+        self.cmd = cmd
+        self.commands_object = commands_object
+
+    def __call__(self, *args, **kwargs):
+        if args or (not args and not kwargs):
+            self.commands_object._run([self.cmd] + list(args))
+        else:
+            # Here's where the keyword magic would have to go
+            self.commands_object._run_with_kw(self.cmd, *args, **kwargs)
+
+
+class Commands(object):
+
+    """Nikola Commands.
+
+    Sample usage:
+    >>> commands.check('-l')                     # doctest: +SKIP
+
+    Or, if you know the internal argument names:
+    >>> commands.check(list=True)                # doctest: +SKIP
+    """
+
+    def __init__(self, main):
+        """Takes a main instance, works as wrapper for commands."""
+        self._cmdnames = []
+        for k, v in main.get_commands().items():
+            self._cmdnames.append(k)
+            if k in ['run', 'init']:
+                continue
+            if sys.version_info[0] == 2:
+                k2 = bytes(k)
+            else:
+                k2 = k
+            nc = type(
+                k2,
+                (CommandWrapper,),
+                {
+                    '__doc__': options2docstring(k, main.sub_cmds[k].options)
+                })
+            setattr(self, k, nc(k, self))
+        self.main = main
+
+    def _run(self, cmd_args):
+        self.main.run(cmd_args)
+
+    def _run_with_kw(self, cmd, *a, **kw):
+        cmd = self.main.sub_cmds[cmd]
+        options, _ = CmdParse(cmd.options).parse([])
+        options.update(kw)
+        if isinstance(cmd, Command):
+            cmd.execute(options=options, args=a)
+        else:  # Doit command
+            cmd.execute(options, a)
+
+    def __repr__(self):
+        """Return useful and verbose help."""
+
+        return """\
+<Nikola Commands>
+
+    Sample usage:
+    >>> commands.check('-l')
+
+    Or, if you know the internal argument names:
+    >>> commands.check(list=True)
+
+Available commands: {0}.""".format(', '.join(self._cmdnames))
+
+
+def options2docstring(name, options):
+    result = ['Function wrapper for command %s' % name, 'arguments:']
+    for opt in options:
+        result.append('{0} type {1} default {2}'.format(opt.name, opt.type.__name__, opt.default))
+    return '\n'.join(result)

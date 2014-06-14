@@ -8,6 +8,7 @@ python:
   - "2.6"
   - "2.7"
   - "3.3"
+  - "3.4"
 matrix:
   include:
     - python: "2.7"
@@ -15,17 +16,21 @@ matrix:
 env:
     NMODE=nikola
 install:
-  - "if [[ $NMODE == 'nikola' ]]; then wget https://github.com/getnikola/wheelhouse/archive/$(scripts/getpyver.py).zip; fi"
-  - "if [[ $NMODE == 'nikola' ]]; then unzip $(scripts/getpyver.py).zip; fi"
-  - "if [[ $NMODE == 'nikola' ]]; then pip install --use-wheel --no-index --find-links=wheelhouse-$(scripts/getpyver.py short) lxml Pillow ipython; fi"
-  - "if [[ $NMODE == 'nikola' ]]; then pip install -r requirements-tests.txt; fi"
+  - "if [[ $NMODE == 'nikola' ]]; then scripts/getwheelhouse.sh $(scripts/getpyver.py short); fi"
+  - "if [[ $NMODE == 'nikola' ]]; then pip install -r requirements-tests.txt; if [[ \"$?\" == '1' ]]; then cat /home/travis/.pip/pip.log; false; fi; fi"
   - "if [[ $NMODE == 'nikola' ]]; then pip install .; fi"
+  - "if [[ $NMODE == 'nikola' ]]; then scripts/getbaseline.sh $(scripts/getpyver.py short); fi"
   - "if [[ $NMODE == 'flake8' ]]; then pip install flake8; fi"
 # We run tests and nikola (to see if the command is executable) OR flake8.
+# We run `nikola` and `nikola help` because things may break due to human
+# errors in argument parsing (cf. 96e78dd)
+# WARNING: if you edit this, make sure to replicate your changes in dodo.py.
 script:
-  - "if [[ $NMODE == 'nikola' ]]; then nosetests --with-coverage --cover-package=nikola --with-doctest --doctest-options=+NORMALIZE_WHITESPACE --logging-filter=-yapsy; fi"
+  - "if [[ $NMODE == 'nikola' ]]; then py.test --doctest-modules nikola/; fi"
+  - "if [[ $NMODE == 'nikola' ]]; then py.test --cov nikola --cov-report term-missing tests/; fi"
+  - "if [[ $NMODE == 'nikola' ]]; then nikola; fi"
   - "if [[ $NMODE == 'nikola' ]]; then nikola help; fi"
-  - "if [[ $NMODE == 'flake8' ]]; then flake8 .; fi"
+  - "if [[ $NMODE == 'flake8' ]]; then flake8 nikola/; fi"
 after_success:
   - "if [[ $NMODE == 'nikola' ]]; then coveralls; fi"
 notifications:

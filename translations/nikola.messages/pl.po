@@ -4,6 +4,8 @@
 # 
 # Translators:
 # Translators:
+# Translators:
+# Translators:
 # Kwpolska <kwpolska@gmail.com>, 2013-2014
 # Kwpolska <kwpolska@gmail.com>, 2013
 # Kwpolska <kwpolska@gmail.com>, 2013
@@ -14,7 +16,7 @@ msgstr ""
 "Project-Id-Version: Nikola\n"
 "Report-Msgid-Bugs-To: ralsina@netmanagers.com.ar\n"
 "POT-Creation-Date: 2013-03-15 12:24-0300\n"
-"PO-Revision-Date: 2014-02-09 16:56+0000\n"
+"PO-Revision-Date: 2014-04-17 14:48+0000\n"
 "Last-Translator: Kwpolska <kwpolska@gmail.com>\n"
 "Language-Team: Polish (http://www.transifex.com/projects/p/nikola/language/pl/)\n"
 "MIME-Version: 1.0\n"
@@ -37,6 +39,9 @@ msgstr "Kategorie"
 
 msgid "Tags and Categories"
 msgstr "Tagi i Kategorie"
+
+msgid "Comments"
+msgstr "Komentarze"
 
 msgid "Read more"
 msgstr "Czytaj więcej"
@@ -73,6 +78,9 @@ msgstr "Poprzedni post"
 msgid "Also available in:"
 msgstr "Również dostępny w językach:"
 
+msgid "Languages:"
+msgstr "Języki:"
+
 msgid "Original site"
 msgstr "Oryginalna strona"
 
@@ -81,6 +89,9 @@ msgstr "Starsze posty"
 
 msgid "Archive"
 msgstr "Archiwum"
+
+msgid "Publication date"
+msgstr "Data publikacji"
 
 msgid "Posted:"
 msgstr "Opublikowano:"
@@ -93,3 +104,9 @@ msgstr "Nic nie znaleziono."
 
 msgid "No posts found."
 msgstr "Nie znaleziono żadnych postów."
+
+msgid "RSS feed"
+msgstr "Kanał RSS"
+
+msgid "%d min remaining to read"
+msgstr "zostało %d minut czytania"

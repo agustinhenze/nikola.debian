@@ -25,12 +25,15 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import absolute_import
+import sys
+import os
 
 __all__ = [
     'Command',
     'LateTask',
     'PageCompiler',
     'RestExtension',
+    'MarkdownExtension',
     'Task',
     'TaskMultiplier',
     'TemplateSystem',
@@ -42,12 +45,6 @@ from doit.cmd_base import Command as DoitCommand
 
 from .utils import LOGGER, first_line
 
-try:
-    # ordereddict does not exist in py2.6
-    from collections import OrderedDict
-except ImportError:
-    OrderedDict = None  # NOQA
-
 
 class BasePlugin(IPlugin):
     """Base plugin class."""
@@ -55,6 +52,28 @@ class BasePlugin(IPlugin):
     def set_site(self, site):
         """Sets site, which is a Nikola instance."""
         self.site = site
+        self.inject_templates()
+
+    def inject_templates(self):
+        """If this plugin contains a 'templates' folder,
+        then templates/mako or templates/jinja will be inserted very early in
+        the theme chain."""
+
+        try:
+            # Sorry, found no other way to get this
+            mod_path = sys.modules[self.__class__.__module__].__file__
+            mod_dir = os.path.dirname(mod_path)
+            tmpl_dir = os.path.join(
+                mod_dir, 'templates', self.site.template_system.name
+            )
+            if os.path.isdir(tmpl_dir):
+                # Inject tmpl_dir low in the theme chain
+                self.site.template_system.inject_directory(tmpl_dir)
+        except AttributeError:
+            # In some cases, __builtin__ becomes the module of a plugin.
+            # We couldn’t reproduce that, and really find the reason for this,
+            # so let’s just ignore it and be done with it.
+            pass
 
 
 class Command(BasePlugin, DoitCommand):
@@ -135,6 +154,8 @@ class BaseTask(BasePlugin):
 class Task(BaseTask):
     """Plugins of this type are task generators."""
 
+    name = "dummy_task"
+
 
 class LateTask(BaseTask):
     """Plugins of this type are executed after all plugins of type Task."""
@@ -145,15 +166,11 @@ class LateTask(BaseTask):
 class TemplateSystem(BasePlugin):
     """Plugins of this type wrap templating systems."""
 
-    name = "dummy templates"
+    name = "dummy_templates"
 
     def set_directories(self, directories, cache_folder):
         """Sets the list of folders where templates are located and cache."""
         raise NotImplementedError()
-
-    def set_site(self, site):
-        """Sets the site."""
-        self.site = site
 
     def template_deps(self, template_name):
         """Returns filenames which are dependencies for a template."""
@@ -168,8 +185,12 @@ class TemplateSystem(BasePlugin):
         raise NotImplementedError()
 
     def render_template_to_string(self, template, context):
-        """ Renders template to a string using context. """
+        """Renders template to a string using context. """
+        raise NotImplementedError()
 
+    def inject_directory(self, directory):
+        """Injects the directory with the lowest priority in the
+        template search mechanism."""
         raise NotImplementedError()
 
 
@@ -189,27 +210,24 @@ class PageCompiler(BasePlugin):
 
     name = "dummy compiler"
     demote_headers = False
-    if OrderedDict is not None:
-        default_metadata = OrderedDict()
-    else:
-        # Graceful fallback.  We could use a backport, but it is
-        # not going to change anything, other than a bit uglier
-        # and nonsensical layout.  Not enough to care.
-        default_metadata = {}
+    supports_onefile = True
+    default_metadata = {}
 
-    default_metadata['title'] = ''
-    default_metadata['slug'] = ''
-    default_metadata['date'] = ''
-    default_metadata['tags'] = ''
-    default_metadata['link'] = ''
-    default_metadata['description'] = ''
-    default_metadata['type'] = 'text'
+    default_metadata = {
+        'title': '',
+        'slug': '',
+        'date': '',
+        'tags': '',
+        'link': '',
+        'description': '',
+        'type': 'text',
+    }
 
     def compile_html(self, source, dest, is_two_file=False):
         """Compile the source, save it on dest."""
         raise NotImplementedError()
 
-    def create_post(self, path, onefile=False, **kw):
+    def create_post(self, path, content=None, onefile=False, is_page=False, **kw):
         """Create post file with optional metadata."""
         raise NotImplementedError()
 
@@ -220,6 +238,10 @@ class PageCompiler(BasePlugin):
 
 class RestExtension(BasePlugin):
     name = "dummy_rest_extension"
+
+
+class MarkdownExtension(BasePlugin):
+    name = "dummy_markdown_extension"
 
 
 class SignalHandler(BasePlugin):

@@ -61,12 +61,14 @@ class RenderTags(Task):
             "output_folder": self.site.config['OUTPUT_FOLDER'],
             "filters": self.site.config['FILTERS'],
             "tag_pages_are_indexes": self.site.config['TAG_PAGES_ARE_INDEXES'],
-            "index_display_post_count":
-            self.site.config['INDEX_DISPLAY_POST_COUNT'],
+            "index_display_post_count": self.site.config['INDEX_DISPLAY_POST_COUNT'],
             "index_teasers": self.site.config['INDEX_TEASERS'],
+            "generate_rss": self.site.config['GENERATE_RSS'],
             "rss_teasers": self.site.config["RSS_TEASERS"],
-            "hide_untranslated_posts": self.site.config['HIDE_UNTRANSLATED_POSTS'],
+            "rss_plain": self.site.config["RSS_PLAIN"],
+            "show_untranslated_posts": self.site.config['SHOW_UNTRANSLATED_POSTS'],
             "feed_length": self.site.config['FEED_LENGTH'],
+            "tzinfo": self.site.tzinfo,
         }
 
         self.site.scan_posts()
@@ -81,16 +83,15 @@ class RenderTags(Task):
         cat_list = list(self.site.posts_per_category.items())
 
         def render_lists(tag, posts, is_category=True):
-            post_list = [self.site.global_data[post] for post in posts]
-            post_list.sort(key=lambda a: a.date)
+            post_list = sorted(posts, key=lambda a: a.date)
             post_list.reverse()
             for lang in kw["translations"]:
-                if kw["hide_untranslated_posts"]:
-                    filtered_posts = [x for x in post_list if x.is_translation_available(lang)]
-                else:
+                if kw["show_untranslated_posts"]:
                     filtered_posts = post_list
-                rss_post_list = [p.source_path for p in filtered_posts]
-                yield self.tag_rss(tag, lang, rss_post_list, kw, is_category)
+                else:
+                    filtered_posts = [x for x in post_list if x.is_translation_available(lang)]
+                if kw["generate_rss"]:
+                    yield self.tag_rss(tag, lang, filtered_posts, kw, is_category)
                 # Render HTML
                 if kw['tag_pages_are_indexes']:
                     yield self.tag_page_as_index(tag, lang, filtered_posts, kw, is_category)
@@ -205,12 +206,13 @@ class RenderTags(Task):
         num_pages = len(lists)
         for i, post_list in enumerate(lists):
             context = {}
-            # On a tag page, the feeds include the tag's feeds
-            rss_link = ("""<link rel="alternate" type="application/rss+xml" """
-                        """type="application/rss+xml" title="RSS for tag """
-                        """{0} ({1})" href="{2}">""".format(
-                            tag, lang, self.site.link(kind + "_rss", tag, lang)))
-            context['rss_link'] = rss_link
+            if kw["generate_rss"]:
+                # On a tag page, the feeds include the tag's feeds
+                rss_link = ("""<link rel="alternate" type="application/rss+xml" """
+                            """type="application/rss+xml" title="RSS for tag """
+                            """{0} ({1})" href="{2}">""".format(
+                                tag, lang, self.site.link(kind + "_rss", tag, lang)))
+                context['rss_link'] = rss_link
             output_name = os.path.join(kw['output_folder'],
                                        page_name(tag, i, lang))
             context["title"] = kw["messages"][lang][
@@ -274,15 +276,13 @@ class RenderTags(Task):
     def tag_rss(self, tag, lang, posts, kw, is_category):
         """RSS for a single tag / language"""
         kind = "category" if is_category else "tag"
-        #Render RSS
+        # Render RSS
         output_name = os.path.normpath(
             os.path.join(kw['output_folder'],
                          self.site.path(kind + "_rss", tag, lang)))
         feed_url = urljoin(self.site.config['BASE_URL'], self.site.link(kind + "_rss", tag, lang).lstrip('/'))
         deps = []
-        post_list = [self.site.global_data[post] for post in posts if
-                     self.site.global_data[post].use_in_feeds]
-        post_list.sort(key=lambda a: a.date)
+        post_list = sorted(posts, key=lambda a: a.date)
         post_list.reverse()
         for post in post_list:
             deps += post.deps(lang)
@@ -292,9 +292,10 @@ class RenderTags(Task):
             'file_dep': deps,
             'targets': [output_name],
             'actions': [(utils.generic_rss_renderer,
-                        (lang, "{0} ({1})".format(kw["blog_title"], tag),
+                        (lang, "{0} ({1})".format(kw["blog_title"](lang), tag),
                          kw["site_url"], None, post_list,
-                         output_name, kw["rss_teasers"], kw['feed_length'], feed_url))],
+                         output_name, kw["rss_teasers"], kw["rss_plain"], kw['feed_length'],
+                         feed_url))],
             'clean': True,
             'uptodate': [utils.config_changed(kw)],
             'task_dep': ['render_posts'],
