@@ -21,28 +21,28 @@ diff --git a/nikola/conf.py.in b/nikola/conf.py.in
 index b398ac3..69ed0e8 100644
 --- a/nikola/conf.py.in
 +++ b/nikola/conf.py.in
-@@ -311,6 +311,8 @@ COMPILERS = ${COMPILERS}
-                              # the main (the newest) index page (index.html)
+@@ -65,6 +65,8 @@ # (the same way you would do with a (translatable) setting.)
+ NAVIGATION_LINKS = ${NAVIGATION_LINKS}
  
  # Name of the theme to use.
 +# WARNING: With this Nikola package, the bootstrap3 theme must be installed
 +#          separately. In order to do this, use: nikola install_bs3
  THEME = ${THEME}
  
- # Color scheme to be used for code blocks. If your theme provides
+ ##############################################
 diff --git a/nikola/plugins/command/init.py b/nikola/plugins/command/init.py
 index d7eeed7..29eebcf 100644
 --- a/nikola/plugins/command/init.py
 +++ b/nikola/plugins/command/init.py
-@@ -47,7 +47,7 @@ SAMPLE_CONF = {
-     'BLOG_EMAIL': "joe@demo.site",
-     'BLOG_DESCRIPTION': "This is a demo site for Nikola.",
-     'DEFAULT_LANG': "en",
+@@ -57,7 +57,7 @@ SAMPLE_CONF = {
+     # Example for another language:
+     # "es": "./es",
+ }""",
 -    'THEME': 'bootstrap3',
 +    'THEME': 'bootstrap',
+     'TIMEZONE': 'UTC',
      'COMMENT_SYSTEM': 'disqus',
      'COMMENT_SYSTEM_ID': 'nikolademo',
-     'TRANSLATIONS_PATTERN': DEFAULT_TRANSLATIONS_PATTERN,
 diff --git a/nikola/plugins/command/install_bs3.plugin b/nikola/plugins/command/install_bs3.plugin
 new file mode 100644
 index 0000000..77730cc
