@@ -33,8 +33,9 @@ override_dh_bash-completion:
 
 override_dh_auto_install:
 	dh_auto_install
-	# Remove a copy of mit license
+	# Remove copy of licenses
 	find debian/nikola/usr/lib -name "MIT-LICENSE.txt" -type f -exec rm {} +
+	find debian/nikola -name "LICENSE.txt" -type f -exec rm {} +
 	# Drop wrong permission
 	find debian/nikola/usr/lib -perm /a+x -type f -exec chmod -x {} +
 
