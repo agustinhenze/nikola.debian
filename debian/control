@@ -14,7 +14,6 @@ Build-Depends:
  python-blinker,
  python-lxml,
  python-yapsy,
- python-tz,
  python-logbook,
  python-doit,
  python-unidecode,
@@ -22,6 +21,7 @@ Build-Depends:
  python-mako,
  python-pygments,
  python-imaging,
+ python-naturalsort,
 Standards-Version: 3.9.5
 X-Python-Version: >= 2.7
 Homepage: http://getnikola.com/
@@ -42,7 +42,6 @@ Depends:
  python-lxml,
  python-yapsy,
  python-pyrss2gen,
- python-tz,
  libjs-jquery,
  libjs-jquery-colorbox,
  libjs-twitter-bootstrap,
