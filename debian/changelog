@@ -1,3 +1,15 @@
+nikola (7.0.1-1) unstable; urgency=medium
+
+  * Imported Upstream version 7.0.1
+  * Update patch to add install_bs3 command
+  * Add patch to replace natsort python module by naturalsort
+  * Add html5shiv.js to debian/missing-sources
+  * Update debian/copyright file
+  * Remove depends on python-tz and add depends on python-naturalsort
+  * Update debian/rules
+
+ -- Agustin Henze <tin@debian.org>  Mon, 16 Jun 2014 15:28:28 -0300
+
 nikola (6.4.0-1) unstable; urgency=medium
 
   * New upstream release version 6.4.0
