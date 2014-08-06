@@ -1,3 +1,10 @@
+nikola (7.0.1-2) unstable; urgency=medium
+
+  * Add nikola.sh (nikola runner to create sh_completion files) (Closes:
+    #752954)
+
+ -- Agustin Henze <tin@debian.org>  Wed, 06 Aug 2014 19:10:19 -0300
+
 nikola (7.0.1-1) unstable; urgency=medium
 
   * Imported Upstream version 7.0.1
