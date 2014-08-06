@@ -8,7 +8,6 @@ Build-Depends:
  dh-python,
  bash-completion,
  python-all,
- python-support (>= 1),
  python-setuptools,
  python-docutils,
  python-blinker,
