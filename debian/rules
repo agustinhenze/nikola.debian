@@ -7,7 +7,7 @@
 UVERSION := $(shell dpkg-parsechangelog | sed -n -e's/^Version: \(.*\)-[^-]\+/\1/p' | cut -d ":" -f 2)
 PACKAGE_NAME := $(shell dpkg-parsechangelog | sed -n -e's/^Source: \(.*\)\+/\1/p')
 export PYBUILD_NAME=$(PACKAGE_NAME)
-ROOT_PATH=$(CURDIR)
+export ROOT_PATH=$(CURDIR)
 
 %:
 	dh $@ --with python2,bash-completion --buildsystem=pybuild
@@ -18,13 +18,10 @@ override_dh_clean:
 	rm -f .doit.db
 	rm -f _nikola_zsh
 	rm -f _nikola_bash
-	rm -f debian/nikola.sh
 	rm -rf debian/dpackaging_site
 	rm -f debian/source/include-binaries
 
 override_dh_bash-completion:
-	echo -e '#!/bin/bash\nexport PYTHONPATH=$(ROOT_PATH)\n$(ROOT_PATH)/debian/nikola/usr/bin/nikola $$@' > debian/nikola.sh
-	chmod +x ./debian/nikola.sh
 	./debian/nikola.sh init -q debian/dpackaging_site
 	cd debian/dpackaging_site/ && ../nikola.sh tabcompletion --shell bash --hardcode-tasks > ../../_nikola_bash
 	cd debian/dpackaging_site/ && ../nikola.sh tabcompletion --shell zsh --hardcode-tasks > ../../_nikola_zsh
