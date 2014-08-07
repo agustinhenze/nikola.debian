@@ -1,3 +1,10 @@
+nikola (7.0.1-3) unstable; urgency=medium
+
+  * Remove depends on obsolete python-support
+  * Remove echo sentence from nikola.sh (Closes: #757352)
+
+ -- Agustin Henze <tin@debian.org>  Thu, 07 Aug 2014 10:47:12 -0300
+
 nikola (7.0.1-2) unstable; urgency=medium
 
   * Add nikola.sh (nikola runner to create sh_completion files) (Closes:
