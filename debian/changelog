@@ -1,3 +1,9 @@
+nikola (7.0.1-4) unstable; urgency=medium
+
+  * Add missing build dependency on python-dateutil
+
+ -- Agustin Henze <tin@debian.org>  Fri, 08 Aug 2014 08:06:18 -0300
+
 nikola (7.0.1-3) unstable; urgency=medium
 
   * Remove depends on obsolete python-support
