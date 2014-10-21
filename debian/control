@@ -45,6 +45,7 @@ Depends:
  libjs-jquery,
  libjs-jquery-colorbox,
  libjs-twitter-bootstrap,
+ libjs-bootstrap,
  libjs-imagesloaded,
 Recommends:
  python-webassets,
