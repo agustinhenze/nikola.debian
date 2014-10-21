@@ -50,13 +50,14 @@ get-orig-source:
 		echo 'Run this from the top directory of the Debian source' >&2; \
 		exit 1; \
 	fi
+	rm -rf ../tmp/nikola_$(UVERSION)
 	mkdir -p ../tmp/nikola_$(UVERSION)
 	wget https://github.com/getnikola/nikola/archive/v$(UVERSION).tar.gz \
 		-O ../tmp/nikola_$(UVERSION).tar.gz;
 	tar xf ../tmp/nikola_$(UVERSION).tar.gz \
 		-C ../tmp/nikola_$(UVERSION) \
 		'--exclude=*min.*' \
-		'--exclude=*bootstrap3*' \
+		'--exclude=*bootstrap-theme.css' \
 		'--exclude=*bootstrap.js' \
 		'--exclude=*bootstrap.css' \
 		'--exclude=*bootstrap-responsive.css' \
