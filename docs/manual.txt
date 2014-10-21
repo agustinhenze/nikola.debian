@@ -1,14 +1,14 @@
 .. title: The Nikola Handbook
 .. slug: handbook
 .. date: 2012-03-30 23:00:00 UTC-03:00
-.. tags:
+.. tags: mathjax
 .. link:
 .. description:
 
 The Nikola Handbook
 ===================
 
-:Version: 7.0.1
+:Version: 7.1.0
 
 .. class:: alert alert-info pull-right
 
@@ -180,7 +180,7 @@ If you want to create a blog or a site, Nikola provides:
 * Google sitemap generation
 * Custom deployment (if it's a command, you can use it)
 * A (very) basic look and feel you can customize, and is even text-mode friendly
-* The input format is light markup (`reStructuredText <quickstart.html>`__ or
+* The input format is light markup (`reStructuredText <http://getnikola.com/quickstart.html>`__ or
   `Markdown <http://daringfireball.net/projects/markdown/>`_)
 * Easy-to-create image galleries
 * Support for displaying source code
@@ -309,7 +309,7 @@ Those source files are later converted to HTML
 The recommended formats are reStructuredText and Markdown, but there is also support
 for textile and WikiCreole and even for just writing HTML.
 
-.. note:: There is a great `quick tutorial to learn reStructuredText. <quickstart.html>`__
+.. note:: There is a great `quick tutorial to learn reStructuredText. <http://getnikola.com/quickstart.html>`__
 
 First, let's see how you "build" your site. Nikola comes with a minimal site to get you started.
 
@@ -566,7 +566,7 @@ default set to::
 
 .. note:: Considered languages
 
-    nikola will only look for translation of input files for languages
+    Nikola will only look for translation of input files for languages
     specified in the TRANSLATIONS variable.
 
 You can edit these files with your favourite text editor, and once you are happy
@@ -898,6 +898,15 @@ Navigation Links
             ),
         }
 
+    .. note::
+
+       Support for submenus is theme-dependent.  Only one level of
+       submenus is supported.
+
+    .. note::
+       Some themes, including the default Bootstrap 3 theme, may
+       present issues if the menu is too large.  (in ``bootstrap3``, the
+       navbar can grow too large and cover contents.)
 
     The ``SEARCH_FORM`` option contains the HTML code for a search form based on
     duckduckgo.com which should always work, but feel free to change it to
@@ -1215,8 +1224,14 @@ The currently available filters are:
         ".html": [apply_to_file(string.upper)]
       }
 
+minify_lines
+   Strips leading whitespace and blank lines. Useful for compacting HTML but pre-formatted text must be escaped manually.
+
 yui_compressor
-   Compress files using `YUI compressor <http://yui.github.io/yuicompressor/>`_
+   Compress CSS/JavaScript using `YUI compressor <http://yui.github.io/yuicompressor/>`_
+
+closure_compiler
+   Compile, compress, and optimize JavaScript `Google Closure Compiler <https://developers.google.com/closure/compiler/>`_
 
 optipng
    Compress PNG files using `optipng <http://optipng.sourceforge.net/>`_
@@ -1262,6 +1277,36 @@ reStructuredText Extensions
 
 Nikola includes support for a few directives and roles that are not part of docutils, but which
 we think are handy for website development.
+
+MathJax
+~~~~~~~
+
+Nikola supports math input via MathJax.  It uses the usual math roles and
+directives of reStructuredText.
+
+In order to use them in your posts, you **must** add the special ``mathjax`` tag.
+
+Inline mathematics (equivalent to single dollar signs or backslash-parentheses
+in LaTeX) are produced using the `math` **role**:
+
+Euler’s formula: :math:`e^{ix} = \cos x + i\sin x`
+
+::
+
+    Euler’s formula: :math:`e^{ix} = \cos x + i\sin x`
+
+Display mathematics (equivalent to double dollar signs or backslash-brackets in
+LaTeX) are produced using the `math` **directive**:
+
+.. math::
+
+   \int \frac{dx}{1+ax}=\frac{1}{a}\ln(1+ax)+C
+
+::
+
+   .. math::
+
+      \int \frac{dx}{1+ax}=\frac{1}{a}\ln(1+ax)+C
 
 Media
 ~~~~~
@@ -1344,20 +1389,18 @@ To use this, you have to put your source code files inside ``listings`` or whate
 Will include the source code from ``foo.py``, highlight its syntax in python mode,
 and also create a ``listings/foo.py.html`` page and the listing will have a title linking to it.
 
-Listings support a few extra options so that you can display a fragment instead of the whole
-file in a document:
+Listings support the same options `reST includes`__ support (including
+various options for controlling which parts of the file are included), and also
+a ``linenos`` option for Sphinx compatibility.
 
-start-at
-    Takes a string, and starts displaying the code at the first line that matches it.
-start-before
-    Takes a string, and starts displaying the code right before the first line that matches it.
-end-at
-    Takes a string, and stops displaying the code at the first line that matches it.
-end-before
-    Takes a string, and stops displaying the code right before the first line that matches it.
+__ http://docutils.sourceforge.net/docs/ref/rst/directives.html#including-an-external-document-fragment
 
-If you set start-at and start-before, start-at wins. If you set end-at and end-before, end-at wins.
-If you make it so your listing ends before it starts, it's frowned upon and nothing will be shown.
+.. note::
+
+   Formerly, ``start-at`` and ``end-at`` options were supported; however,
+   they do not work anymore (since v6.1.0) and you should now use ``start-after``
+   and ``end-before``, respectively.  You can also use ``start-line`` and
+   ``end-line``.
 
 Gist
 ~~~~
@@ -1432,6 +1475,36 @@ If we want to use the post's title as the link's text, just do::
 and it will produce:
 
     Take a look at :doc:`creating-a-theme` to know how to do it.
+
+Post List
+~~~~~~~~~
+
+This directive can be used to generate a list of posts. You could use it, for
+example, to make a list of the latest 5 blog posts, or a list of all blog posts
+with the tag ``nikola``::
+
+   Here are my 5 latest and greatest blog posts:
+
+   .. post-list::
+      :start: -5
+
+   These are all my posts about Nikola:
+
+   .. post-list::
+      :tags: nikola
+
+Note that you can give the ``tags`` option a comma-separated list of tags, in
+which case the list will show all posts that have at least one of those tags.
+Other interesting options include ``stop`` (set it to ``-1``, for example, to
+show all but the last post); ``reverse`` (set to ``True`` to sort the list in
+chronological order, instead of the default latest-post-first); ``lang``
+(language to use for post titles and links); and ``slugs`` (allows you to filter
+by post slugs, instead of tags).
+
+The post list directive uses the ``post_list_directive.tmpl`` template file (or
+another one, if you use the ``template`` option) to generate the list's HTML. By
+default, this is an unordered list with dates and clickable post titles. See
+the template file in Nikola's base theme for an example of how this works.
 
 
 Importing Your WordPress Site Into Nikola

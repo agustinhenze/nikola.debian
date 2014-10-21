@@ -59,9 +59,24 @@ TRANSLATIONS = ${TRANSLATIONS}
 
 TRANSLATIONS_PATTERN = ${TRANSLATIONS_PATTERN}
 
-# Links for the sidebar / navigation bar.
-# You should provide a key-value pair for each used language.
-# (the same way you would do with a (translatable) setting.)
+# Links for the sidebar / navigation bar.  (translatable)
+# This is a dict.  The keys are languages, and values are tuples.
+#
+# For regular links:
+#     ('http://example.com/', 'Text')
+#
+# For submenus:
+#     ((
+#         ('Sub 1', 'http://example.com/'),
+#         ('Sub 2', 'http://example.org/'),
+#     ), 'Top')
+#
+# WARNING: Support for submenus is theme-dependent.
+#          Only one level of submenus is supported.
+# WARNING: Some themes, including the default Bootstrap 3 theme,
+#          may present issues if the menu is too large.
+#          (in bootstrap3, the navbar can grow too large and cover contents.)
+
 NAVIGATION_LINKS = ${NAVIGATION_LINKS}
 
 # Name of the theme to use.
@@ -259,11 +274,16 @@ REDIRECTIONS = ${REDIRECTIONS}
 # A python callable, which will be called with the filename as
 # argument.
 #
-# By default, there are no filters.
+# By default, only .php files uses filters to inject PHP into
+# Nikola’s templates. All other filters must be enabled through FILTERS.
 #
-# Many filters are shipped with Nikola.  A list is available in the manual:
+# Many filters are shipped with Nikola. A list is available in the manual:
 # <http://getnikola.com/handbook.html#post-processing-filters>
+#
+# from nikola import filters
 # FILTERS = {
+#    ".html": [filters.typogrify],
+#    ".js": [filters.closure_compiler],
 #    ".jpg": ["jpegoptim --strip-all -m75 -v %s"],
 # }
 
@@ -424,6 +444,9 @@ COMMENT_SYSTEM_ID = ${COMMENT_SYSTEM_ID}
 # ANNOTATIONS = False
 
 # Create index.html for story folders?
+# WARNING: if a story would conflict with the index file (usually
+#          caused by setting slug to `index`), the STORY_INDEX
+#          will not be generated for that directory.
 # STORY_INDEX = False
 # Enable comments on story pages?
 # COMMENTS_IN_STORIES = False
@@ -682,6 +705,12 @@ UNSLUGIFY_TITLES = True
 # example.
 # (defaults to 1.)
 # DEMOTE_HEADERS = 1
+
+# If you don’t like slugified file names ([a-z0-9] and a literal dash),
+# and would prefer to use all the characters your file system allows.
+# USE WITH CARE!  This is also not guaranteed to be perfect, and may
+# sometimes crash Nikola, your web server, or eat your cat.
+# USE_SLUGIFY = True
 
 # You can configure the logging handlers installed as plugins or change the
 # log level of the default stderr handler.

@@ -73,7 +73,7 @@ class Listings(Task):
                     code = highlight(fd.read(), lexer,
                                      HtmlFormatter(cssclass='code',
                                                    linenos="table", nowrap=False,
-                                                   lineanchors=utils.slugify(in_name),
+                                                   lineanchors=utils.slugify(in_name, force=True),
                                                    anchorlinenos=True))
                 # the pygments highlighter uses <div class="codehilite"><pre>
                 # for code.  We switch it to reST's <pre class="code">.
@@ -123,6 +123,9 @@ class Listings(Task):
 
             for k in self.site._GLOBAL_CONTEXT_TRANSLATABLE:
                 uptodate[k] = self.site.GLOBAL_CONTEXT[k](kw['default_lang'])
+
+            # save navigation links as dependencies
+            uptodate['navigation_links'] = uptodate['c']['navigation_links'](kw['default_lang'])
 
             uptodate2 = uptodate.copy()
             uptodate2['f'] = files
