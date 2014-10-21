@@ -25,7 +25,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import unicode_literals
-import codecs
+import io
 import datetime
 import glob
 import json
@@ -54,6 +54,8 @@ from nikola.plugin_categories import Task
 from nikola import utils
 from nikola.post import Post
 from nikola.utils import req_missing
+
+_image_size_cache = {}
 
 
 class Galleries(Task):
@@ -153,6 +155,9 @@ class Galleries(Task):
 
             # Create index.html for each language
             for lang in self.kw['translations']:
+                # save navigation links as dependencies
+                self.kw['navigation_links|{0}'.format(lang)] = self.kw['global_context']['navigation_links'](lang)
+
                 dst = os.path.join(
                     self.kw['output_folder'],
                     self.site.path(
@@ -460,8 +465,11 @@ class Galleries(Task):
 
         photo_array = []
         for img, thumb, title in zip(img_list, thumbs, img_titles):
-            im = Image.open(thumb)
-            w, h = im.size
+            w, h = _image_size_cache.get(thumb, (None, None))
+            if w is None:
+                im = Image.open(thumb)
+                w, h = im.size
+                _image_size_cache[thumb] = w, h
             # Thumbs are files in output, we need URLs
             photo_array.append({
                 'url': url_from_path(img),
@@ -515,7 +523,7 @@ class Galleries(Task):
         rss_obj.rss_attrs["xmlns:dc"] = "http://purl.org/dc/elements/1.1/"
         dst_dir = os.path.dirname(output_path)
         utils.makedirs(dst_dir)
-        with codecs.open(output_path, "wb+", "utf-8") as rss_file:
+        with io.open(output_path, "w+", encoding="utf-8") as rss_file:
             data = rss_obj.to_xml(encoding='utf-8')
             if isinstance(data, utils.bytes_str):
                 data = data.decode('utf-8')

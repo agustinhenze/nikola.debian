@@ -25,7 +25,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import unicode_literals, print_function
-import codecs
+import io
 import datetime
 import os
 import sys
@@ -332,7 +332,7 @@ class CommandNewPost(Command):
         event = dict(path=txt_path)
 
         if not onefile:  # write metadata file
-            with codecs.open(meta_path, "wb+", "utf8") as fd:
+            with io.open(meta_path, "w+", encoding="utf8") as fd:
                 fd.write(utils.write_metadata(data))
             LOGGER.info("Your {0}'s metadata is at: {1}".format(content_type, meta_path))
             event['meta_path'] = meta_path
@@ -341,8 +341,8 @@ class CommandNewPost(Command):
         signal('new_' + content_type).send(self, **event)
 
         if options['edit']:
-            editor = os.getenv('EDITOR')
-            to_run = [editor, txt_path]
+            editor = os.getenv('EDITOR', '').split()
+            to_run = editor + [txt_path]
             if not onefile:
                 to_run.append(meta_path)
             if editor:

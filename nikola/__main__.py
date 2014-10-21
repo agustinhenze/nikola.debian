@@ -78,7 +78,6 @@ def main(args=None):
     # the output of that command (the new site) in an unknown directory that is
     # not the current working directory.  (does not apply to `version`)
     argname = args[0] if len(args) > 0 else None
-    # FIXME there are import plugins in the repo, so how do we handle this?
     if argname and argname not in ['init', 'version'] and not argname.startswith('import_'):
         root = get_root_dir()
         if root:
@@ -91,8 +90,8 @@ def main(args=None):
         config = conf.__dict__
     except Exception:
         if os.path.exists('conf.py'):
-            msg = traceback.format_exc(0).splitlines()[1]
-            LOGGER.error('In conf.py line {0}: {1}'.format(sys.exc_info()[2].tb_lineno, msg))
+            msg = traceback.format_exc(0)
+            LOGGER.error('conf.py cannot be parsed.\n{0}'.format(msg))
             sys.exit(1)
         config = {}
 

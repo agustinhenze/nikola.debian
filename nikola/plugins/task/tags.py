@@ -25,7 +25,6 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import unicode_literals
-import codecs
 import json
 import os
 try:
@@ -124,8 +123,8 @@ class RenderTags(Task):
 
         def write_tag_data(data):
             utils.makedirs(os.path.dirname(output_name))
-            with codecs.open(output_name, 'wb+', 'utf8') as fd:
-                fd.write(json.dumps(data))
+            with open(output_name, 'w+') as fd:
+                json.dump(data, fd)
 
         task = {
             'basename': str(self.name),
@@ -169,7 +168,7 @@ class RenderTags(Task):
             else:
                 context["cat_items"] = None
             context["permalink"] = self.site.link("tag_index", None, lang)
-            context["description"] = None
+            context["description"] = context["title"]
             task = self.site.generic_post_list_renderer(
                 lang,
                 [],
@@ -231,7 +230,7 @@ class RenderTags(Task):
                     page_name(tag, i + 1, lang))
             context["permalink"] = self.site.link(kind, tag, lang)
             context["tag"] = tag
-            context["description"] = None
+            context["description"] = context["title"]
             task = self.site.generic_post_list_renderer(
                 lang,
                 post_list,
@@ -259,7 +258,7 @@ class RenderTags(Task):
         context["permalink"] = self.site.link(kind, tag, lang)
         context["tag"] = tag
         context["kind"] = kind
-        context["description"] = None
+        context["description"] = context["title"]
         task = self.site.generic_post_list_renderer(
             lang,
             post_list,
