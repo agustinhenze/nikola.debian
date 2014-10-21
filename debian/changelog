@@ -1,3 +1,15 @@
+nikola (7.1.0-1) unstable; urgency=medium
+
+  * Imported Upstream version 7.1.0
+  * Remove patches for bootstrap3
+  * Add dependency on libjs-bootstrap
+  * Add symlinks to bootstrap3 debian package
+  * Fix get-orig-source to import bootstrap3 theme
+  * Fix quoting when generate zsh completion (Closes: #762241)
+  * Bumped Standard-Version to 3.9.6 (no changes required)
+
+ -- Agustin Henze <tin@debian.org>  Tue, 21 Oct 2014 10:47:58 -0300
+
 nikola (7.0.1-4) unstable; urgency=medium
 
   * Add missing build dependency on python-dateutil
