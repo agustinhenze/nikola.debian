@@ -64,6 +64,7 @@ Suggests:
  python-creoleparser,
  txt2tags,
  node-less,
+ python-pygal
 Description: simple yet powerful and flexible static website and blog generator
  Nikola is a static site and blog generator. Feed information to it on one
  side and get a ready-to-deploy website on the other.
