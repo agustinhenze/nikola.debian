@@ -1,3 +1,13 @@
+nikola (7.6.0-1) unstable; urgency=medium
+
+  * Add missing patch (Closes: #790710)
+  * Imported Upstream version 7.6.0 (Closes: #789072, #790906)
+  * Replace strict dependency on dateutil for the current one in debian
+    archive (Closes:  #767536)
+  * Fix manpage path
+
+ -- Agustin Henze <tin@debian.org>  Wed, 08 Jul 2015 09:20:02 -0300
+
 nikola (7.1.0-2) unstable; urgency=medium
 
   * Add suggestion on python-pygal for easy Charts.
