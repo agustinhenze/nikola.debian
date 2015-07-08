@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -33,11 +33,13 @@ import textwrap
 import datetime
 import unidecode
 import dateutil.tz
+import dateutil.zoneinfo
 from mako.template import Template
 from pkg_resources import resource_filename
+import tarfile
 
 import nikola
-from nikola.nikola import DEFAULT_TRANSLATIONS_PATTERN, DEFAULT_INDEX_READ_MORE_LINK, DEFAULT_RSS_READ_MORE_LINK, LEGAL_VALUES
+from nikola.nikola import DEFAULT_TRANSLATIONS_PATTERN, DEFAULT_INDEX_READ_MORE_LINK, DEFAULT_RSS_READ_MORE_LINK, LEGAL_VALUES, urlsplit, urlunsplit
 from nikola.plugin_categories import Command
 from nikola.utils import ask, ask_yesno, get_logger, makedirs, STDERR_HANDLER, load_messages
 from nikola.packages.tzlocal import get_localzone
@@ -48,9 +50,10 @@ LOGGER = get_logger('init', STDERR_HANDLER)
 SAMPLE_CONF = {
     'BLOG_AUTHOR': "Your Name",
     'BLOG_TITLE': "Demo Site",
-    'SITE_URL': "http://getnikola.com/",
+    'SITE_URL': "https://example.com/",
     'BLOG_EMAIL': "joe@demo.site",
     'BLOG_DESCRIPTION': "This is a demo site for Nikola.",
+    'PRETTY_URLS': False,
     'DEFAULT_LANG': "en",
     'TRANSLATIONS': """{
     DEFAULT_LANG: "",
@@ -186,7 +189,7 @@ def format_navigation_links(additional_languages, default_lang, messages):
     pairs.append(f.format('DEFAULT_LANG', '', get_msg(default_lang)))
 
     for l in additional_languages:
-        pairs.append(f.format(json.dumps(l), '/' + l, get_msg(l)))
+        pairs.append(f.format(json.dumps(l, ensure_ascii=False), '/' + l, get_msg(l)))
 
     return u'{{\n{0}\n}}'.format('\n\n'.join(pairs))
 
@@ -196,11 +199,13 @@ def format_navigation_links(additional_languages, default_lang, messages):
 def prepare_config(config):
     """Parse sample config with JSON."""
     p = config.copy()
-    p.update(dict((k, json.dumps(v)) for k, v in p.items()
-             if k not in ('POSTS', 'PAGES', 'COMPILERS', 'TRANSLATIONS', 'NAVIGATION_LINKS', '_SUPPORTED_LANGUAGES', '_SUPPORTED_COMMENT_SYSTEMS', 'INDEX_READ_MORE_LINK', 'RSS_READ_MORE_LINK')))
+    p.update(dict((k, json.dumps(v, ensure_ascii=False)) for k, v in p.items()
+             if k not in ('POSTS', 'PAGES', 'COMPILERS', 'TRANSLATIONS', 'NAVIGATION_LINKS', '_SUPPORTED_LANGUAGES', '_SUPPORTED_COMMENT_SYSTEMS', 'INDEX_READ_MORE_LINK', 'RSS_READ_MORE_LINK', 'PRETTY_URLS')))
     # READ_MORE_LINKs require some special treatment.
     p['INDEX_READ_MORE_LINK'] = "'" + p['INDEX_READ_MORE_LINK'].replace("'", "\\'") + "'"
     p['RSS_READ_MORE_LINK'] = "'" + p['RSS_READ_MORE_LINK'].replace("'", "\\'") + "'"
+    # json would make that `true` instead of `True`
+    p['PRETTY_URLS'] = str(p['PRETTY_URLS'])
     return p
 
 
@@ -237,13 +242,19 @@ class CommandInit(Command):
         src = resource_filename('nikola', os.path.join('data', 'samplesite'))
         shutil.copytree(src, target)
 
-    @classmethod
-    def create_configuration(cls, target):
+    @staticmethod
+    def create_configuration(target):
         template_path = resource_filename('nikola', 'conf.py.in')
         conf_template = Template(filename=template_path)
         conf_path = os.path.join(target, 'conf.py')
         with io.open(conf_path, 'w+', encoding='utf8') as fd:
             fd.write(conf_template.render(**prepare_config(SAMPLE_CONF)))
+
+    @staticmethod
+    def create_configuration_to_string():
+        template_path = resource_filename('nikola', 'conf.py.in')
+        conf_template = Template(filename=template_path)
+        return conf_template.render(**prepare_config(SAMPLE_CONF))
 
     @classmethod
     def create_empty_site(cls, target):
@@ -253,6 +264,39 @@ class CommandInit(Command):
     @staticmethod
     def ask_questions(target):
         """Ask some questions about Nikola."""
+        def urlhandler(default, toconf):
+            answer = ask('Site URL', 'https://example.com/')
+            try:
+                answer = answer.decode('utf-8')
+            except (AttributeError, UnicodeDecodeError):
+                pass
+            if not answer.startswith(u'http'):
+                print("    ERROR: You must specify a protocol (http or https).")
+                urlhandler(default, toconf)
+                return
+            if not answer.endswith('/'):
+                print("    The URL does not end in '/' -- adding it.")
+                answer += '/'
+
+            dst_url = urlsplit(answer)
+            try:
+                dst_url.netloc.encode('ascii')
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                # The IDN contains characters beyond ASCII.  We must convert it
+                # to Punycode. (Issue #1644)
+                nl = dst_url.netloc.encode('idna')
+                answer = urlunsplit((dst_url.scheme,
+                                     nl,
+                                     dst_url.path,
+                                     dst_url.query,
+                                     dst_url.fragment))
+                print("    Converting to Punycode:", answer)
+
+            SAMPLE_CONF['SITE_URL'] = answer
+
+        def prettyhandler(default, toconf):
+            SAMPLE_CONF['PRETTY_URLS'] = ask_yesno('Enable pretty URLs (/page/ instead of /page.html) that don’t need web server configuration?', default=True)
+
         def lhandler(default, toconf, show_header=True):
             if show_header:
                 print("We will now ask you to provide the list of languages you want to use.")
@@ -297,7 +341,7 @@ class CommandInit(Command):
                 lhandler(default, toconf, show_header=False)
 
         def tzhandler(default, toconf):
-            print("\nPlease choose the correct time zone for your blog.  Nikola uses the tz database.")
+            print("\nPlease choose the correct time zone for your blog. Nikola uses the tz database.")
             print("You can find your time zone here:")
             print("http://en.wikipedia.org/wiki/List_of_tz_database_time_zones")
             print("")
@@ -309,12 +353,26 @@ class CommandInit(Command):
                     lz = None
                 answer = ask('Time zone', lz if lz else "UTC")
                 tz = dateutil.tz.gettz(answer)
+
+                if tz is None:
+                    print("    WARNING: Time zone not found.  Searching list of time zones for a match.")
+                    zonesfile = tarfile.open(fileobj=dateutil.zoneinfo.getzoneinfofile_stream())
+                    zonenames = [zone for zone in zonesfile.getnames() if answer.lower() in zone.lower()]
+                    if len(zonenames) == 1:
+                        tz = dateutil.tz.gettz(zonenames[0])
+                        answer = zonenames[0]
+                        print("    Picking '{0}'.".format(answer))
+                    elif len(zonenames) > 1:
+                        print("    The following time zones match your query:")
+                        print('        ' + '\n        '.join(zonenames))
+                        continue
+
                 if tz is not None:
                     time = datetime.datetime.now(tz).strftime('%H:%M:%S')
                     print("    Current time in {0}: {1}".format(answer, time))
                     answered = ask_yesno("Use this time zone?", True)
                 else:
-                    print("    ERROR: Time zone not found.  Please try again.  Time zones are case-sensitive.")
+                    print("    ERROR: No matches found.  Please try again.")
 
             SAMPLE_CONF['TIMEZONE'] = answer
 
@@ -353,7 +411,8 @@ class CommandInit(Command):
             ('Site author', 'Nikola Tesla', True, 'BLOG_AUTHOR'),
             ('Site author\'s e-mail', 'n.tesla@example.com', True, 'BLOG_EMAIL'),
             ('Site description', 'This is a demo site for Nikola.', True, 'BLOG_DESCRIPTION'),
-            ('Site URL', 'http://getnikola.com/', True, 'SITE_URL'),
+            (urlhandler, None, True, True),
+            (prettyhandler, None, True, True),
             ('Questions about languages and locales', None, None, None),
             (lhandler, None, True, True),
             (tzhandler, None, True, True),
@@ -377,6 +436,10 @@ class CommandInit(Command):
                     query(default, toconf)
                 else:
                     answer = ask(query, default)
+                    try:
+                        answer = answer.decode('utf-8')
+                    except (AttributeError, UnicodeDecodeError):
+                        pass
                     if toconf:
                         SAMPLE_CONF[destination] = answer
                     if destination == '!target':
@@ -386,7 +449,7 @@ class CommandInit(Command):
                         STORAGE['target'] = answer
 
         print("\nThat's it, Nikola is now configured.  Make sure to edit conf.py to your liking.")
-        print("If you are looking for themes and addons, check out http://themes.getnikola.com/ and http://plugins.getnikola.com/.")
+        print("If you are looking for themes and addons, check out https://themes.getnikola.com/ and https://plugins.getnikola.com/.")
         print("Have fun!")
         return STORAGE
 

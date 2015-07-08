@@ -7,7 +7,7 @@
 {% block content %}
     {{ ui.bar(crumbs) }}
     {% if title %}
-    <h1>{{ title }}</h1>
+    <h1>{{ title|e }}</h1>
     {% endif %}
     {% if post %}
     <p>
@@ -40,6 +40,7 @@
 
 {% block extra_head %}
 {{ super() }}
+<link rel="alternate" type="application/rss+xml" title="RSS" href="rss.xml">
 <style type="text/css">
     .image-block {
         display: inline-block;

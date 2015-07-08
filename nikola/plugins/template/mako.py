@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -115,7 +115,7 @@ class MakoTemplates(TemplateSystem):
     def render_template_to_string(self, template, context):
         """ Render template to a string using context. """
 
-        context = context.update(self.filters)
+        context.update(self.filters)
 
         return Template(template).render(**context)
 

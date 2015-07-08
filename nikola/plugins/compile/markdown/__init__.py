@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -30,7 +30,6 @@ from __future__ import unicode_literals
 
 import io
 import os
-import re
 
 try:
     from markdown import markdown
@@ -45,24 +44,27 @@ from nikola.utils import makedirs, req_missing, write_metadata
 
 
 class CompileMarkdown(PageCompiler):
-    """Compile markdown into HTML."""
+    """Compile Markdown into HTML."""
 
     name = "markdown"
+    friendly_name = "Markdown"
     demote_headers = True
     extensions = []
     site = None
 
     def set_site(self, site):
+        self.config_dependencies = []
         for plugin_info in site.plugin_manager.getPluginsOfCategory("MarkdownExtension"):
             if plugin_info.name in site.config['DISABLED_PLUGINS']:
                 site.plugin_manager.removePluginFromCategory(plugin_info, "MarkdownExtension")
                 continue
-
+            self.config_dependencies.append(plugin_info.name)
             site.plugin_manager.activatePluginByName(plugin_info.name)
             plugin_info.plugin_object.set_site(site)
             self.extensions.append(plugin_info.plugin_object)
             plugin_info.plugin_object.short_help = plugin_info.description
 
+        self.config_dependencies.append(str(sorted(site.config.get("MARKDOWN_EXTENSIONS"))))
         return super(CompileMarkdown, self).set_site(site)
 
     def compile_html(self, source, dest, is_two_file=True):
@@ -74,7 +76,7 @@ class CompileMarkdown(PageCompiler):
             with io.open(source, "r", encoding="utf8") as in_file:
                 data = in_file.read()
             if not is_two_file:
-                data = re.split('(\n\n|\r\n\r\n)', data, maxsplit=1)[-1]
+                _, data = self.split_metadata(data)
             output = markdown(data, self.extensions)
             out_file.write(output)
 

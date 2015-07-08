@@ -23,10 +23,10 @@ BLOG_AUTHOR = "Your Name"  # (translatable)
 BLOG_TITLE = "Demo Site"  # (translatable)
 # This is the main URL for your site. It will be used
 # in a prominent link
-SITE_URL = "http://getnikola.com/"
+SITE_URL = "https://example.com/"
 # This is the URL where nikola's output will be deployed.
 # If not set, defaults to SITE_URL
-# BASE_URL = "http://getnikola.com/"
+# BASE_URL = "https://example.com/"
 BLOG_EMAIL = "joe@demo.site"
 BLOG_DESCRIPTION = "This is a demo site for Nikola."  # (translatable)
 
@@ -279,7 +279,7 @@ REDIRECTIONS = []
 # By default, there are no filters.
 #
 # Many filters are shipped with Nikola.  A list is available in the manual:
-# <http://getnikola.com/handbook.html#post-processing-filters>
+# <https://getnikola.com/handbook.html#post-processing-filters>
 # FILTERS = {
 #    ".jpg": ["jpegoptim --strip-all -m75 -v %s"],
 # }
@@ -394,7 +394,7 @@ LICENSE = ""
 
 # A small copyright notice for the page footer (in HTML).
 # (translatable)
-CONTENT_FOOTER = 'Contents &copy; {date}         <a href="mailto:{email}">{author}</a> - Powered by         <a href="http://getnikola.com" rel="nofollow">Nikola</a>         {license}'
+CONTENT_FOOTER = 'Contents &copy; {date}         <a href="mailto:{email}">{author}</a> - Powered by         <a href="https://getnikola.com/" rel="nofollow">Nikola</a>         {license}'
 
 # Things that will be passed to CONTENT_FOOTER.format().  This is done
 # for translatability, as dicts are not formattable.  Nikola will
@@ -625,8 +625,8 @@ COMMENT_SYSTEM_ID = "nikolademo"
 
 
 # Use content distribution networks for jquery and twitter-bootstrap css and js
-# If this is True, jquery is served from the Google CDN and twitter-bootstrap
-# is served from the NetDNA CDN
+# If this is True, jquery and html5shiv are served from the Google CDN and
+# Bootstrap is served from BootstrapCDN (provided by MaxCDN)
 # Set this to False if you want to host your site without requiring access to
 # external resources.
 # USE_CDN = False

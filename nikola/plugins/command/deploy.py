@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -29,23 +29,22 @@ import io
 from datetime import datetime
 from dateutil.tz import gettz
 import os
-import sys
 import subprocess
 import time
 
 from blinker import signal
 
 from nikola.plugin_categories import Command
-from nikola.utils import get_logger, remove_file, unicode_str
+from nikola.utils import get_logger, remove_file, unicode_str, makedirs
 
 
 class CommandDeploy(Command):
     """Deploy site."""
     name = "deploy"
 
-    doc_usage = ""
+    doc_usage = "[[preset [preset...]]"
     doc_purpose = "deploy the site"
-
+    doc_description = "Deploy the site by executing deploy commands from the presets listed on the command line.  If no presets are specified, `default` is executed."
     logger = None
 
     def _execute(self, command, args):
@@ -74,14 +73,29 @@ class CommandDeploy(Command):
                     remove_file(os.path.join(out_dir, post.source_path))
                     undeployed_posts.append(post)
 
-        for command in self.site.config['DEPLOY_COMMANDS']:
-            self.logger.info("==> {0}".format(command))
+        if args:
+            presets = args
+        else:
+            presets = ['default']
+
+        # test for preset existence
+        for preset in presets:
             try:
-                subprocess.check_call(command, shell=True)
-            except subprocess.CalledProcessError as e:
-                self.logger.error('Failed deployment — command {0} '
-                                  'returned {1}'.format(e.cmd, e.returncode))
-                sys.exit(e.returncode)
+                self.site.config['DEPLOY_COMMANDS'][preset]
+            except:
+                self.logger.error('No such preset: {0}'.format(preset))
+                return 255
+
+        for preset in presets:
+            self.logger.info("=> preset '{0}'".format(preset))
+            for command in self.site.config['DEPLOY_COMMANDS'][preset]:
+                self.logger.info("==> {0}".format(command))
+                try:
+                    subprocess.check_call(command, shell=True)
+                except subprocess.CalledProcessError as e:
+                    self.logger.error('Failed deployment — command {0} '
+                                      'returned {1}'.format(e.cmd, e.returncode))
+                    return e.returncode
 
         self.logger.info("Successful deployment")
         try:
@@ -96,6 +110,7 @@ class CommandDeploy(Command):
         new_deploy = datetime.utcnow()
         self._emit_deploy_event(last_deploy, new_deploy, clean, undeployed_posts)
 
+        makedirs(self.site.config['CACHE_FOLDER'])
         # Store timestamp of successful deployment
         with io.open(timestamp_path, 'w+', encoding='utf8') as outf:
             outf.write(unicode_str(new_deploy.isoformat()))

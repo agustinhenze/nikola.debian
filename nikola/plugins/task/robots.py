@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -48,7 +48,8 @@ class RobotsFile(LateTask):
             "site_url": self.site.config["SITE_URL"],
             "output_folder": self.site.config["OUTPUT_FOLDER"],
             "files_folders": self.site.config['FILES_FOLDERS'],
-            "robots_exclusions": self.site.config["ROBOTS_EXCLUSIONS"]
+            "robots_exclusions": self.site.config["ROBOTS_EXCLUSIONS"],
+            "filters": self.site.config["FILTERS"],
         }
 
         sitemapindex_url = urljoin(kw["base_url"], "sitemapindex.xml")
@@ -68,15 +69,15 @@ class RobotsFile(LateTask):
         yield self.group_task()
 
         if not utils.get_asset_path("robots.txt", [], files_folders=kw["files_folders"]):
-            yield {
+            yield utils.apply_filters({
                 "basename": self.name,
                 "name": robots_path,
                 "targets": [robots_path],
                 "actions": [(write_robots)],
-                "uptodate": [utils.config_changed(kw)],
+                "uptodate": [utils.config_changed(kw, 'nikola.plugins.task.robots')],
                 "clean": True,
                 "task_dep": ["sitemap"]
-            }
+            }, kw["filters"])
         elif kw["robots_exclusions"]:
             utils.LOGGER.warn('Did not generate robots.txt as one already exists in FILES_FOLDERS. ROBOTS_EXCLUSIONS will not have any affect on the copied fie.')
         else:

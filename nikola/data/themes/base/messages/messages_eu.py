@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 MESSAGES = {
     "%d min remaining to read": "",
+    "(active)": "",
     "Also available in:": "Eskuragarria hemen ere:",
     "Archive": "Artxiboa",
     "Categories": "Kategoriak",
@@ -19,6 +20,7 @@ MESSAGES = {
     "Posted:": "Argitaratuta:",
     "Posts about %s": "%s-ri buruzko postak",
     "Posts for year %s": "%s. urteko postak",
+    "Posts for {month} {day}, {year}": "",
     "Posts for {month} {year}": "{year}ko {month}ren postak",
     "Previous post": "Aurreko posta",
     "Publication date": "",
@@ -27,8 +29,11 @@ MESSAGES = {
     "Read more": "Irakurri gehiago",
     "Skip to main content": "",
     "Source": "Iturria",
+    "Subcategories:": "",
     "Tags and Categories": "Etiketak eta Kategoriak",
     "Tags": "Etiketak",
+    "Write your page here.": "",
+    "Write your post here.": "",
     "old posts, page %d": "Post zaharren, orria %d",
     "page %d": "orria %d",
 }

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -49,6 +49,7 @@ class Sources(Task):
             "translations": self.site.config["TRANSLATIONS"],
             "output_folder": self.site.config["OUTPUT_FOLDER"],
             "default_lang": self.site.config["DEFAULT_LANG"],
+            "show_untranslated_posts": self.site.config['SHOW_UNTRANSLATED_POSTS'],
         }
 
         self.site.scan_posts()
@@ -56,6 +57,8 @@ class Sources(Task):
         if self.site.config['COPY_SOURCES']:
             for lang in kw["translations"]:
                 for post in self.site.timeline:
+                    if not kw["show_untranslated_posts"] and lang not in post.translated_to:
+                        continue
                     if post.meta('password'):
                         continue
                     output_name = os.path.join(
@@ -77,5 +80,5 @@ class Sources(Task):
                             'targets': [output_name],
                             'actions': [(utils.copy_file, (source, output_name))],
                             'clean': True,
-                            'uptodate': [utils.config_changed(kw)],
+                            'uptodate': [utils.config_changed(kw, 'nikola.plugins.task.sources')],
                         }

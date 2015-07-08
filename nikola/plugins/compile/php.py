@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -40,6 +40,7 @@ class CompilePhp(PageCompiler):
     """Compile PHP into PHP."""
 
     name = "php"
+    friendly_name = "PHP"
 
     def compile_html(self, source, dest, is_two_file=True):
         makedirs(os.path.dirname(dest))

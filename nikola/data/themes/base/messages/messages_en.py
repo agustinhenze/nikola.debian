@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 MESSAGES = {
     "%d min remaining to read": "%d min remaining to read",
+    "(active)": "(active)",
     "Also available in:": "Also available in:",
     "Archive": "Archive",
     "Categories": "Categories",
@@ -19,6 +20,7 @@ MESSAGES = {
     "Posted:": "Posted:",
     "Posts about %s": "Posts about %s",
     "Posts for year %s": "Posts for year %s",
+    "Posts for {month} {day}, {year}": "Posts for {month} {day}, {year}",
     "Posts for {month} {year}": "Posts for {month} {year}",
     "Previous post": "Previous post",
     "Publication date": "Publication date",
@@ -27,8 +29,11 @@ MESSAGES = {
     "Read more": "Read more",
     "Skip to main content": "Skip to main content",
     "Source": "Source",
+    "Subcategories:": "Subcategories:",
     "Tags and Categories": "Tags and Categories",
     "Tags": "Tags",
+    "Write your page here.": "Write your page here.",
+    "Write your post here.": "Write your post here.",
     "old posts, page %d": "old posts, page %d",
     "page %d": "page %d",
 }

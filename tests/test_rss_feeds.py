@@ -33,6 +33,13 @@ class FakeCompiler(object):
     demote_headers = False
     compile_html = None
     extension = lambda self: '.html'
+    name = "fake"
+
+    def read_metadata(*args, **kwargs):
+        return {}
+
+    def register_extra_dependencies(self, post):
+        pass
 
 
 class RSSFeedTest(unittest.TestCase):
@@ -42,14 +49,14 @@ class RSSFeedTest(unittest.TestCase):
 
         with mock.patch('nikola.post.get_meta',
                         mock.Mock(return_value=(
-                            {'title': 'post title',
+                            ({'title': 'post title',
                              'slug': 'awesome_article',
                              'date': '2012-10-01 22:41',
                              'author': None,
                              'tags': 'tags',
                              'link': 'link',
                              'description': 'description',
-                             'enclosure': 'http://www.example.org/foo.mp3'}
+                             'enclosure': 'http://www.example.org/foo.mp3'}, True)
                         ))):
             with mock.patch('nikola.nikola.utils.os.path.isdir',
                             mock.Mock(return_value=True)):

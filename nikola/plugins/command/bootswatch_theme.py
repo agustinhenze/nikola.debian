@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -26,11 +26,7 @@
 
 from __future__ import print_function
 import os
-
-try:
-    import requests
-except ImportError:
-    requests = None  # NOQA
+import requests
 
 from nikola.plugin_categories import Command
 from nikola import utils
@@ -57,7 +53,7 @@ class CommandBootswatchTheme(Command):
         {
             'name': 'swatch',
             'short': 's',
-            'default': 'slate',
+            'default': '',
             'type': str,
             'help': 'Name of the swatch from bootswatch.com.'
         },
@@ -72,19 +68,19 @@ class CommandBootswatchTheme(Command):
 
     def _execute(self, options, args):
         """Given a swatch name and a parent theme, creates a custom theme."""
-        if requests is None:
-            utils.req_missing(['requests'], 'install Bootswatch themes')
-
         name = options['name']
         swatch = options['swatch']
+        if not swatch:
+            LOGGER.error('The -s option is mandatory')
+            return 1
         parent = options['parent']
         version = ''
 
         # See if we need bootswatch for bootstrap v2 or v3
         themes = utils.get_theme_chain(parent)
-        if 'bootstrap3' not in themes or 'bootstrap3-jinja' not in themes:
+        if 'bootstrap3' not in themes and 'bootstrap3-jinja' not in themes:
             version = '2'
-        elif 'bootstrap' not in themes or 'bootstrap-jinja' not in themes:
+        elif 'bootstrap' not in themes and 'bootstrap-jinja' not in themes:
             LOGGER.warn('"bootswatch_theme" only makes sense for themes that use bootstrap')
         elif 'bootstrap3-gradients' in themes or 'bootstrap3-gradients-jinja' in themes:
             LOGGER.warn('"bootswatch_theme" doesn\'t work well with the bootstrap3-gradients family')

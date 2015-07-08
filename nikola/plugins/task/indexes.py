@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -29,7 +29,7 @@ from collections import defaultdict
 import os
 
 from nikola.plugin_categories import Task
-from nikola.utils import config_changed
+from nikola import utils
 
 
 class Indexes(Task):
@@ -39,6 +39,7 @@ class Indexes(Task):
 
     def set_site(self, site):
         site.register_path_handler('index', self.index_path)
+        site.register_path_handler('index_atom', self.index_atom_path)
         return super(Indexes, self).set_site(site)
 
     def gen_tasks(self):
@@ -47,85 +48,39 @@ class Indexes(Task):
 
         kw = {
             "translations": self.site.config['TRANSLATIONS'],
-            "index_display_post_count":
-            self.site.config['INDEX_DISPLAY_POST_COUNT'],
             "messages": self.site.MESSAGES,
-            "index_teasers": self.site.config['INDEX_TEASERS'],
             "output_folder": self.site.config['OUTPUT_FOLDER'],
             "filters": self.site.config['FILTERS'],
             "show_untranslated_posts": self.site.config['SHOW_UNTRANSLATED_POSTS'],
+            "index_display_post_count": self.site.config['INDEX_DISPLAY_POST_COUNT'],
             "indexes_title": self.site.config['INDEXES_TITLE'],
-            "indexes_pages": self.site.config['INDEXES_PAGES'],
-            "indexes_pages_main": self.site.config['INDEXES_PAGES_MAIN'],
             "blog_title": self.site.config["BLOG_TITLE"],
-            "rss_read_more_link": self.site.config["RSS_READ_MORE_LINK"],
+            "generate_atom": self.site.config["GENERATE_ATOM"],
         }
 
         template_name = "index.tmpl"
         posts = self.site.posts
+        self.number_of_pages = dict()
         for lang in kw["translations"]:
-            # Split in smaller lists
-            lists = []
+            def page_link(i, displayed_i, num_pages, force_addition, extension=None):
+                feed = "_atom" if extension == ".atom" else ""
+                return utils.adjust_name_for_index_link(self.site.link("index" + feed, None, lang), i, displayed_i,
+                                                        lang, self.site, force_addition, extension)
+
+            def page_path(i, displayed_i, num_pages, force_addition, extension=None):
+                feed = "_atom" if extension == ".atom" else ""
+                return utils.adjust_name_for_index_path(self.site.path("index" + feed, None, lang), i, displayed_i,
+                                                        lang, self.site, force_addition, extension)
+
             if kw["show_untranslated_posts"]:
                 filtered_posts = posts
             else:
                 filtered_posts = [x for x in posts if x.is_translation_available(lang)]
-            lists.append(filtered_posts[:kw["index_display_post_count"]])
-            filtered_posts = filtered_posts[kw["index_display_post_count"]:]
-            while filtered_posts:
-                lists.append(filtered_posts[-kw["index_display_post_count"]:])
-                filtered_posts = filtered_posts[:-kw["index_display_post_count"]]
-            num_pages = len(lists)
-            for i, post_list in enumerate(lists):
-                context = {}
-                indexes_title = kw['indexes_title'] or kw['blog_title'](lang)
-                if kw["indexes_pages_main"]:
-                    ipages_i = i + 1
-                    ipages_msg = "page %d"
-                else:
-                    ipages_i = i
-                    ipages_msg = "old posts, page %d"
-                if kw["indexes_pages"]:
-                    indexes_pages = kw["indexes_pages"] % ipages_i
-                else:
-                    indexes_pages = " (" + \
-                        kw["messages"][lang][ipages_msg] % ipages_i + ")"
-                if i > 0 or kw["indexes_pages_main"]:
-                    context["title"] = indexes_title + indexes_pages
-                else:
-                    context["title"] = indexes_title
-                context["prevlink"] = None
-                context["nextlink"] = None
-                context['index_teasers'] = kw['index_teasers']
-                if i == 0:  # index.html page
-                    context["prevlink"] = None
-                    if num_pages > 1:
-                        context["nextlink"] = "index-{0}.html".format(num_pages - 1)
-                    else:
-                        context["nextlink"] = None
-                else:  # index-x.html pages
-                    if i > 1:
-                        context["nextlink"] = "index-{0}.html".format(i - 1)
-                    if i < num_pages - 1:
-                        context["prevlink"] = "index-{0}.html".format(i + 1)
-                    elif i == num_pages - 1:
-                        context["prevlink"] = "index.html"
-                context["permalink"] = self.site.link("index", i, lang)
-                output_name = os.path.join(
-                    kw['output_folder'], self.site.path("index", i,
-                                                        lang))
-                task = self.site.generic_post_list_renderer(
-                    lang,
-                    post_list,
-                    output_name,
-                    template_name,
-                    kw['filters'],
-                    context,
-                )
-                task_cfg = {1: task['uptodate'][0].config, 2: kw}
-                task['uptodate'] = [config_changed(task_cfg)]
-                task['basename'] = 'render_indexes'
-                yield task
+
+            indexes_title = kw['indexes_title'](lang) or kw['blog_title'](lang)
+            self.number_of_pages[lang] = (len(filtered_posts) + kw['index_display_post_count'] - 1) // kw['index_display_post_count']
+
+            yield self.site.generic_index_renderer(lang, filtered_posts, indexes_title, template_name, {}, kw, 'render_indexes', page_link, page_path)
 
         if not self.site.config["STORY_INDEX"]:
             return
@@ -135,6 +90,7 @@ class Indexes(Task):
             "output_folder": self.site.config['OUTPUT_FOLDER'],
             "filters": self.site.config['FILTERS'],
             "index_file": self.site.config['INDEX_FILE'],
+            "strip_indexes": self.site.config['STRIP_INDEXES'],
         }
         template_name = "list.tmpl"
         for lang in kw["translations"]:
@@ -151,6 +107,12 @@ class Indexes(Task):
                     should_render = True
                     output_name = os.path.join(kw['output_folder'], dirname, kw['index_file'])
                     short_destination = os.path.join(dirname, kw['index_file'])
+                    link = short_destination.replace('\\', '/')
+                    index_len = len(kw['index_file'])
+                    if kw['strip_indexes'] and link[-(1 + index_len):] == '/' + kw['index_file']:
+                        link = link[:-index_len]
+                    context["permalink"] = link
+
                     for post in post_list:
                         # If there is an index.html pending to be created from
                         # a story, do not generate the STORY_INDEX
@@ -166,18 +128,25 @@ class Indexes(Task):
                                                                     template_name,
                                                                     kw['filters'],
                                                                     context)
-                        task_cfg = {1: task['uptodate'][0].config, 2: kw}
-                        task['uptodate'] = [config_changed(task_cfg)]
+                        task['uptodate'] = task['uptodate'] + [utils.config_changed(kw, 'nikola.plugins.task.indexes')]
                         task['basename'] = self.name
                         yield task
 
-    def index_path(self, name, lang):
-        if name not in [None, 0]:
-            return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
-                                  self.site.config['INDEX_PATH'],
-                                  'index-{0}.html'.format(name)] if _f]
+    def index_path(self, name, lang, is_feed=False):
+        extension = None
+        if is_feed:
+            extension = ".atom"
+            index_file = os.path.splitext(self.site.config['INDEX_FILE'])[0] + extension
         else:
-            return [_f for _f in [self.site.config['TRANSLATIONS'][lang],
-                                  self.site.config['INDEX_PATH'],
-                                  self.site.config['INDEX_FILE']]
-                    if _f]
+            index_file = self.site.config['INDEX_FILE']
+        return utils.adjust_name_for_index_path_list([_f for _f in [self.site.config['TRANSLATIONS'][lang],
+                                                                    self.site.config['INDEX_PATH'],
+                                                                    index_file] if _f],
+                                                     name,
+                                                     utils.get_displayed_page_number(name, self.number_of_pages[lang], self.site),
+                                                     lang,
+                                                     self.site,
+                                                     extension=extension)
+
+    def index_atom_path(self, name, lang):
+        return self.index_path(name, lang, is_feed=True)

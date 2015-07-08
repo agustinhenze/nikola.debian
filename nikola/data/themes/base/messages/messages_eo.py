@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 MESSAGES = {
     "%d min remaining to read": "",
+    "(active)": "",
     "Also available in:": "Ankaŭ disponebla en:",
     "Archive": "Arĥivo",
     "Categories": "Kategorioj",
@@ -19,6 +20,7 @@ MESSAGES = {
     "Posted:": "Skribita:",
     "Posts about %s": "Artikoloj pri %s",
     "Posts for year %s": "Artikoloj de la jaro %s",
+    "Posts for {month} {day}, {year}": "",
     "Posts for {month} {year}": "Artikoloj skribitaj en {month} {year}",
     "Previous post": "Antaŭa artikolo",
     "Publication date": "",
@@ -27,8 +29,11 @@ MESSAGES = {
     "Read more": "Legu plu",
     "Skip to main content": "",
     "Source": "Fonto",
+    "Subcategories:": "",
     "Tags and Categories": "Etikedoj kaj Kategorioj",
     "Tags": "Etikedoj",
+    "Write your page here.": "",
+    "Write your post here.": "",
     "old posts, page %d": "paĝo de malnovaj artikoloj %d",
     "page %d": "paĝo %d",
 }

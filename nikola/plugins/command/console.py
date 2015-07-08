@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Chris Warrick, Roberto Alsina and others.
+# Copyright © 2012-2015 Chris Warrick, Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -30,7 +30,7 @@ import os
 
 from nikola import __version__
 from nikola.plugin_categories import Command
-from nikola.utils import get_logger, STDERR_HANDLER, req_missing
+from nikola.utils import get_logger, STDERR_HANDLER, req_missing, Commands
 
 LOGGER = get_logger('console', STDERR_HANDLER)
 
@@ -121,6 +121,8 @@ If there is no console to use specified (as -b, -i, -p) it tries IPython, then f
         """Start the console."""
         self.site.scan_posts()
         # Create nice object with all commands:
+
+        self.site.commands = Commands(self.site.doit, self.config, self._doitargs)
 
         self.context = {
             'conf': self.site.config,

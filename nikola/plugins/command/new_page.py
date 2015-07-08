@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina, Chris Warrick and others.
+# Copyright © 2012-2015 Roberto Alsina, Chris Warrick and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -45,6 +45,14 @@ class CommandNewPage(Command):
             'help': 'Title for the page.'
         },
         {
+            'name': 'author',
+            'short': 'a',
+            'long': 'author',
+            'type': str,
+            'default': '',
+            'help': 'Author of the post.'
+        },
+        {
             'name': 'onefile',
             'short': '1',
             'type': bool,
@@ -71,13 +79,29 @@ class CommandNewPage(Command):
             'long': 'format',
             'type': str,
             'default': '',
-            'help': 'Markup format for the page, one of rest, markdown, wiki, '
-                    'bbcode, html, textile, txt2tags',
+            'help': 'Markup format for the page (use --available-formats for list)',
+        },
+        {
+            'name': 'available-formats',
+            'short': 'F',
+            'long': 'available-formats',
+            'type': bool,
+            'default': False,
+            'help': 'List all available input formats'
+        },
+        {
+            'name': 'import',
+            'short': 'i',
+            'long': 'import',
+            'type': str,
+            'default': '',
+            'help': 'Import an existing file instead of creating a placeholder'
         },
     ]
 
     def _execute(self, options, args):
         """Create a new page."""
+        # Defaults for some values that don’t apply to pages and the is_page option (duh!)
         options['tags'] = ''
         options['schedule'] = False
         options['is_page'] = True
