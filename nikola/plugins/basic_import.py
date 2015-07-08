@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -29,6 +29,7 @@ import io
 import csv
 import datetime
 import os
+import sys
 from pkg_resources import resource_filename
 
 try:
@@ -114,32 +115,34 @@ class ImportMixin(object):
         return content
 
     @classmethod
-    def write_content(cls, filename, content):
-        doc = html.document_fromstring(content)
-        doc.rewrite_links(replacer)
+    def write_content(cls, filename, content, rewrite_html=True):
+        if rewrite_html:
+            doc = html.document_fromstring(content)
+            doc.rewrite_links(replacer)
+            content = html.tostring(doc, encoding='utf8')
+        else:
+            content = content.encode('utf-8')
 
         utils.makedirs(os.path.dirname(filename))
         with open(filename, "wb+") as fd:
-            fd.write(html.tostring(doc, encoding='utf8'))
+            fd.write(content)
 
     @staticmethod
-    def write_metadata(filename, title, slug, post_date, description, tags):
+    def write_metadata(filename, title, slug, post_date, description, tags, **kwargs):
         if not description:
             description = ""
 
         utils.makedirs(os.path.dirname(filename))
         with io.open(filename, "w+", encoding="utf8") as fd:
-            fd.write('{0}\n'.format(title))
-            fd.write('{0}\n'.format(slug))
-            fd.write('{0}\n'.format(post_date))
-            fd.write('{0}\n'.format(','.join(tags)))
-            fd.write('\n')
-            fd.write('{0}\n'.format(description))
+            data = {'title': title, 'slug': slug, 'date': post_date, 'tags': ','.join(tags), 'description': description}
+            data.update(kwargs)
+            fd.write(utils.write_metadata(data))
 
     @staticmethod
     def write_urlmap_csv(output_file, url_map):
         utils.makedirs(os.path.dirname(output_file))
-        with io.open(output_file, 'w+', encoding='utf8') as fd:
+        fmode = 'wb+' if sys.version_info[0] == 2 else 'w+'
+        with io.open(output_file, fmode) as fd:
             csv_writer = csv.writer(fd)
             for item in url_map.items():
                 csv_writer.writerow(item)

@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 MESSAGES = {
     "%d min remaining to read": "",
+    "(active)": "",
     "Also available in:": "Også tilgjengelig på:",
     "Archive": "Arkiv",
     "Categories": "Kategorier",
@@ -19,6 +20,7 @@ MESSAGES = {
     "Posted:": "Publisert:",
     "Posts about %s": "Innlegg om %s",
     "Posts for year %s": "Innlegg fra %s",
+    "Posts for {month} {day}, {year}": "",
     "Posts for {month} {year}": "Innlegg fra {month} {year}",
     "Previous post": "Forrige innlegg",
     "Publication date": "",
@@ -27,8 +29,11 @@ MESSAGES = {
     "Read more": "Les mer",
     "Skip to main content": "",
     "Source": "Kilde",
+    "Subcategories:": "",
     "Tags and Categories": "Merker og kategorier",
     "Tags": "Merker",
+    "Write your page here.": "",
+    "Write your post here.": "",
     "old posts, page %d": "eldre innlegg, side %d",
     "page %d": "side %d",
 }

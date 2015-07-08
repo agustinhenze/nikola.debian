@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -25,18 +25,20 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from copy import copy
+import os
 
 from nikola.plugin_categories import Task
-from nikola import utils
+from nikola import filters, utils
 
 
-def rest_deps(post, task):
-    """Add extra_deps from ReST into task.
+def update_deps(post, lang, task):
+    """Updates file dependencies as they might have been updated during compilation.
 
-    The .dep file is created by ReST so not available before the task starts
-    to execute.
+    This is done for example by the ReST page compiler, which writes its
+    dependencies into a .dep file. This file is read and incorporated when calling
+    post.fragment_deps(), and only available /after/ compiling the fragment.
     """
-    task.file_dep.update(post.extra_deps())
+    task.file_dep.update([p for p in post.fragment_deps(lang) if not p.startswith("####MAGIC####")])
 
 
 class RenderPosts(Task):
@@ -54,23 +56,62 @@ class RenderPosts(Task):
             "show_untranslated_posts": self.site.config['SHOW_UNTRANSLATED_POSTS'],
             "demote_headers": self.site.config['DEMOTE_HEADERS'],
         }
+        self.tl_changed = False
 
         yield self.group_task()
+
+        def tl_ch():
+            self.tl_changed = True
+
+        yield {
+            'basename': self.name,
+            'name': 'timeline_changes',
+            'actions': [tl_ch],
+            'uptodate': [utils.config_changed({1: kw['timeline']})],
+        }
 
         for lang in kw["translations"]:
             deps_dict = copy(kw)
             deps_dict.pop('timeline')
             for post in kw['timeline']:
+
                 dest = post.translated_base_path(lang)
+                file_dep = [p for p in post.fragment_deps(lang) if not p.startswith("####MAGIC####")]
                 task = {
                     'basename': self.name,
                     'name': dest,
-                    'file_dep': post.fragment_deps(lang),
+                    'file_dep': file_dep,
                     'targets': [dest],
                     'actions': [(post.compile, (lang, )),
-                                (rest_deps, (post,)),
+                                (update_deps, (post, lang, )),
                                 ],
                     'clean': True,
-                    'uptodate': [utils.config_changed(deps_dict)],
+                    'uptodate': [
+                        utils.config_changed(deps_dict, 'nikola.plugins.task.posts'),
+                        lambda p=post, l=lang: self.dependence_on_timeline(p, l)
+                    ] + post.fragment_deps_uptodate(lang),
+                    'task_dep': ['render_posts:timeline_changes']
                 }
-                yield task
+
+                # Apply filters specified in the metadata
+                ff = [x.strip() for x in post.meta('filters', lang).split(',')]
+                flist = []
+                for i, f in enumerate(ff):
+                    if not f:
+                        continue
+                    if f.startswith('filters.'):  # A function from the filters module
+                        f = f[8:]
+                        try:
+                            flist.append(getattr(filters, f))
+                        except AttributeError:
+                            pass
+                    else:
+                        flist.append(f)
+                yield utils.apply_filters(task, {os.path.splitext(dest): flist})
+
+    def dependence_on_timeline(self, post, lang):
+        if "####MAGIC####TIMELINE" not in post.fragment_deps(lang):
+            return True  # No dependency on timeline
+        elif self.tl_changed:
+            return False  # Timeline changed
+        return True

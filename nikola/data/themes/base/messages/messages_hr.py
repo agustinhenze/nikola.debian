@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 MESSAGES = {
     "%d min remaining to read": "",
+    "(active)": "",
     "Also available in:": "Također dostupno i u:",
     "Archive": "Arhiva",
     "Categories": "Kategorije",
@@ -19,6 +20,7 @@ MESSAGES = {
     "Posted:": "Objavljeno:",
     "Posts about %s": "Postovi o %s",
     "Posts for year %s": "Postovi za godinu %s",
+    "Posts for {month} {day}, {year}": "",
     "Posts for {month} {year}": "Postovi za {month} {year}",
     "Previous post": "Prethodni post",
     "Publication date": "Nadnevak objave",
@@ -27,8 +29,11 @@ MESSAGES = {
     "Read more": "Čitaj dalje",
     "Skip to main content": "",
     "Source": "Izvor",
+    "Subcategories:": "",
     "Tags and Categories": "Tagovi i kategorije",
     "Tags": "Tagovi",
+    "Write your page here.": "",
+    "Write your post here.": "",
     "old posts, page %d": "stari postovi, stranice %d",
     "page %d": "stranice %d",
 }

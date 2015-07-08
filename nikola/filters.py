@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -147,11 +147,67 @@ def jpegoptim(infile):
     return runinplace(r"jpegoptim -p --strip-all -q %1", infile)
 
 
+def html_tidy_withconfig(infile):
+    return _html_tidy_runner(infile, r"-quiet --show-info no --show-warnings no -utf8 -indent -config tidy5.conf -modify %1")
+
+
+def html_tidy_nowrap(infile):
+    return _html_tidy_runner(infile, r"-quiet --show-info no --show-warnings no -utf8 -indent --indent-attributes no --sort-attributes alpha --wrap 0 --wrap-sections no --drop-empty-elements no --tidy-mark no -modify %1")
+
+
+def html_tidy_wrap(infile):
+    return _html_tidy_runner(infile, r"-quiet --show-info no --show-warnings no -utf8 -indent --indent-attributes no --sort-attributes alpha --wrap 80 --wrap-sections no --drop-empty-elements no --tidy-mark no -modify %1")
+
+
+def html_tidy_wrap_attr(infile):
+    return _html_tidy_runner(infile, r"-quiet --show-info no --show-warnings no -utf8 -indent --indent-attributes yes --sort-attributes alpha --wrap 80 --wrap-sections no --drop-empty-elements no --tidy-mark no -modify %1")
+
+
+def html_tidy_mini(infile):
+    return _html_tidy_runner(infile, r"-quiet --show-info no --show-warnings no -utf8 --indent-attributes no --sort-attributes alpha --wrap 0 --wrap-sections no --tidy-mark no --drop-empty-elements no -modify %1")
+
+
+def _html_tidy_runner(infile, options):
+    """ Warnings (returncode 1) are not critical, and *everything* is a warning """
+    try:
+        status = runinplace(r"tidy5 " + options, infile)
+    except subprocess.CalledProcessError as err:
+        status = 0 if err.returncode == 1 else err.returncode
+    return status
+
+
+@apply_to_text_file
+def html5lib_minify(data):
+    import html5lib
+    import html5lib.serializer
+    data = html5lib.serializer.serialize(html5lib.parse(data, treebuilder='lxml'),
+                                         tree='lxml',
+                                         quote_attr_values=False,
+                                         omit_optional_tags=True,
+                                         minimize_boolean_attributes=True,
+                                         strip_whitespace=True,
+                                         alphabetical_attributes=True,
+                                         escape_lt_in_attrs=True)
+    return data
+
+
+@apply_to_text_file
+def html5lib_xmllike(data):
+    import html5lib
+    import html5lib.serializer
+    data = html5lib.serializer.serialize(html5lib.parse(data, treebuilder='lxml'),
+                                         tree='lxml',
+                                         quote_attr_values=True,
+                                         omit_optional_tags=False,
+                                         strip_whitespace=False,
+                                         alphabetical_attributes=True,
+                                         escape_lt_in_attrs=True)
+    return data
+
+
 @apply_to_text_file
 def minify_lines(data):
-    datalines = data.splitlines()
-    datalines = [line.lstrip() for line in datalines if not (line.strip() == "")]
-    return "\n".join(datalines)
+    return data
 
 
 @apply_to_text_file
@@ -161,6 +217,21 @@ def typogrify(data):
 
     data = typo.amp(data)
     data = typo.widont(data)
+    data = typo.smartypants(data)
+    # Disabled because of typogrify bug where it breaks <title>
+    # data = typo.caps(data)
+    data = typo.initial_quotes(data)
+    return data
+
+
+@apply_to_text_file
+def typogrify_sans_widont(data):
+    # typogrify with widont disabled because it caused broken headline
+    # wrapping, see issue #1465
+    if typo is None:
+        req_missing(['typogrify'], 'use the typogrify_sans_widont filter')
+
+    data = typo.amp(data)
     data = typo.smartypants(data)
     # Disabled because of typogrify bug where it breaks <title>
     # data = typo.caps(data)
@@ -179,5 +250,6 @@ def php_template_injection(data):
         _META_SEPARATOR = '(' + os.linesep * 2 + '|' + ('\n' * 2) + '|' + ("\r\n" * 2) + ')'
         phpdata = re.split(_META_SEPARATOR, phpdata, maxsplit=1)[-1]
         phpdata = re.sub(template.group(0), phpdata, data)
-
-    return phpdata
+        return phpdata
+    else:
+        return data

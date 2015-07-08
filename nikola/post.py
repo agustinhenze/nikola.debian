@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -29,6 +29,8 @@ from __future__ import unicode_literals, print_function, absolute_import
 import io
 from collections import defaultdict
 import datetime
+import hashlib
+import json
 import os
 import re
 import string
@@ -36,6 +38,8 @@ try:
     from urlparse import urljoin
 except ImportError:
     from urllib.parse import urljoin  # NOQA
+
+from . import utils
 
 import dateutil.tz
 import lxml.html
@@ -67,6 +71,7 @@ from .rc4 import rc4
 __all__ = ['Post']
 
 TEASER_REGEXP = re.compile('<!--\s*TEASER_END(:(.+))?\s*-->', re.IGNORECASE)
+_UPGRADE_METADATA_ADVERTISED = False
 
 
 class Post(object):
@@ -122,13 +127,18 @@ class Post(object):
         self.skip_untranslated = not self.config['SHOW_UNTRANSLATED_POSTS']
         self._template_name = template_name
         self.is_two_file = True
+        self.newstylemeta = True
         self.hyphenate = self.config['HYPHENATE']
         self._reading_time = None
         self._remaining_reading_time = None
         self._paragraph_count = None
         self._remaining_paragraph_count = None
+        self._dependency_file_fragment = defaultdict(list)
+        self._dependency_file_page = defaultdict(list)
+        self._dependency_uptodate_fragment = defaultdict(list)
+        self._dependency_uptodate_page = defaultdict(list)
 
-        default_metadata = get_meta(self, self.config['FILE_METADATA_REGEXP'], self.config['UNSLUGIFY_TITLES'])
+        default_metadata, self.newstylemeta = get_meta(self, self.config['FILE_METADATA_REGEXP'], self.config['UNSLUGIFY_TITLES'])
 
         self.meta = Functionary(lambda: None, self.default_lang)
         self.meta[self.default_lang] = default_metadata
@@ -140,7 +150,9 @@ class Post(object):
             if lang != self.default_lang:
                 meta = defaultdict(lambda: '')
                 meta.update(default_metadata)
-                meta.update(get_meta(self, self.config['FILE_METADATA_REGEXP'], self.config['UNSLUGIFY_TITLES'], lang))
+                _meta, _nsm = get_meta(self, self.config['FILE_METADATA_REGEXP'], self.config['UNSLUGIFY_TITLES'], lang)
+                self.newstylemeta = self.newstylemeta and _nsm
+                meta.update(_meta)
                 self.meta[lang] = meta
 
         if not self.is_translation_available(self.default_lang):
@@ -157,6 +169,14 @@ class Post(object):
                 default_metadata['date'] = datetime.datetime.utcfromtimestamp(
                     os.stat(self.source_path).st_ctime).replace(tzinfo=dateutil.tz.tzutc()).astimezone(tzinfo)
 
+        # If time zone is set, build localized datetime.
+        self.date = to_datetime(self.meta[self.default_lang]['date'], tzinfo)
+
+        if 'updated' not in default_metadata:
+            default_metadata['updated'] = default_metadata.get('date', None)
+
+        self.updated = to_datetime(default_metadata['updated'])
+
         if 'title' not in default_metadata or 'slug' not in default_metadata \
                 or 'date' not in default_metadata:
             raise OSError("You must set a title (found '{0}'), a slug (found "
@@ -170,9 +190,6 @@ class Post(object):
             # default value is 'text'
             default_metadata['type'] = 'text'
 
-        # If time zone is set, build localized datetime.
-        self.date = to_datetime(self.meta[self.default_lang]['date'], tzinfo)
-
         self.publish_later = False if self.current_time is None else self.date >= self.current_time
 
         is_draft = False
@@ -180,9 +197,10 @@ class Post(object):
         self._tags = {}
         for lang in self.translated_to:
             self._tags[lang] = natsort.natsorted(
-                list(set([x.strip() for x in self.meta[lang]['tags'].split(',')])))
+                list(set([x.strip() for x in self.meta[lang]['tags'].split(',')])),
+                alg=natsort.ns.F | natsort.ns.IC)
             self._tags[lang] = [t for t in self._tags[lang] if t]
-            if 'draft' in self._tags[lang]:
+            if 'draft' in [_.lower() for _ in self._tags[lang]]:
                 is_draft = True
                 LOGGER.debug('The post "{0}" is a draft.'.format(self.source_path))
                 self._tags[lang].remove('draft')
@@ -206,11 +224,26 @@ class Post(object):
         self.use_in_feeds = use_in_feeds and not is_draft and not is_private \
             and not self.publish_later
 
-        # If mathjax is a tag, then enable mathjax rendering support
-        self.is_mathjax = 'mathjax' in self.tags
+        # If mathjax is a tag, or it's a ipynb post, then enable mathjax rendering support
+        self.is_mathjax = ('mathjax' in self.tags) or (self.compiler.name == 'ipynb')
+
+        # Register potential extra dependencies
+        self.compiler.register_extra_dependencies(self)
 
     def __repr__(self):
-        return '<Post: {0}>'.format(self.source_path)
+        # Calculate a hash that represents most data about the post
+        m = hashlib.md5()
+        # source_path modification date (to avoid reading it)
+        m.update(utils.unicode_str(os.stat(self.source_path).st_mtime).encode('utf-8'))
+        clean_meta = {}
+        for k, v in self.meta.items():
+            sub_meta = {}
+            clean_meta[k] = sub_meta
+            for kk, vv in v.items():
+                if vv:
+                    sub_meta[kk] = vv
+        m.update(utils.unicode_str(json.dumps(clean_meta, cls=utils.CustomEncoder, sort_keys=True)).encode('utf-8'))
+        return '<Post: {0!r} {1}>'.format(self.source_path, m.hexdigest())
 
     def _has_pretty_url(self, lang):
         if self.pretty_urls and \
@@ -274,13 +307,19 @@ class Post(object):
     def template_name(self):
         return self.meta('template') or self._template_name
 
-    def formatted_date(self, date_format):
+    def formatted_date(self, date_format, date=None):
         """Return the formatted date, as unicode."""
-        fmt_date = self.date.strftime(date_format)
+        if date:
+            fmt_date = date.strftime(date_format)
+        else:
+            fmt_date = self.date.strftime(date_format)
         # Issue #383, this changes from py2 to py3
         if isinstance(fmt_date, bytes_str):
             fmt_date = fmt_date.decode('utf8')
         return fmt_date
+
+    def formatted_updated(self, date_format):
+        return self.formatted_date(date_format, self.updated)
 
     def title(self, lang=None):
         """Return localized title.
@@ -313,8 +352,76 @@ class Post(object):
             lang = nikola.utils.LocaleBorg().current_lang
         return self.meta[lang]['description']
 
+    def add_dependency(self, dependency, add='both', lang=None):
+        """Adds a file dependency for tasks using that post.
+
+        The ``dependency`` should be a string specifying a path, or a callable
+        which returns such a string or a list of strings.
+
+        The ``add`` parameter can be 'both', 'fragment' or 'page', to indicate
+        that this dependency shall be used
+         * when rendering the fragment to HTML ('fragment' and 'both'), or
+         * when creating a page with parts of the ``Post`` embedded, which
+           includes the HTML resulting from compiling the fragment ('page' or
+           'both').
+
+        If ``lang`` is not specified, this dependency is added for all languages."""
+        if add not in {'fragment', 'page', 'both'}:
+            raise Exception("Add parameter is '{0}', but must be either 'fragment', 'page', or 'both'.".format(add))
+        if add == 'fragment' or add == 'both':
+            self._dependency_file_fragment[lang].append((type(dependency) != str, dependency))
+        if add == 'page' or add == 'both':
+            self._dependency_file_page[lang].append((type(dependency) != str, dependency))
+
+    def add_dependency_uptodate(self, dependency, is_callable=False, add='both', lang=None):
+        """Adds a dependency for task's ``uptodate`` for tasks using that post.
+
+        This can be for example an ``utils.config_changed`` object, or a list of
+        such objects.
+
+        The ``is_callable`` parameter specifies whether ``dependency`` is a
+        callable which generates an entry or a list of entries for the ``uptodate``
+        list, or whether it is an entry which can directly be added (as a single
+        object or a list of objects).
+
+        The ``add`` parameter can be 'both', 'fragment' or 'page', to indicate
+        that this dependency shall be used
+         * when rendering the fragment to HTML ('fragment' and 'both'), or
+         * when creating a page with parts of the ``Post`` embedded, which
+           includes the HTML resulting from compiling the fragment ('page' or
+           'both').
+
+        If ``lang`` is not specified, this dependency is added for all languages.
+
+        Example:
+
+        post.add_dependency_uptodate(
+            utils.config_changed({1: some_data}, 'uniqueid'), False, 'page')
+
+        """
+        if add == 'fragment' or add == 'both':
+            self._dependency_uptodate_fragment[lang].append((is_callable, dependency))
+        if add == 'page' or add == 'both':
+            self._dependency_uptodate_page[lang].append((is_callable, dependency))
+
+    def _get_dependencies(self, deps_list):
+        deps = []
+        for dep in deps_list:
+            if dep[0]:
+                # callable
+                result = dep[1]()
+            else:
+                # can add directly
+                result = dep[1]
+            # if result is a list, add its contents
+            if type(result) == list:
+                deps.extend(result)
+            else:
+                deps.append(result)
+        return deps
+
     def deps(self, lang):
-        """Return a list of dependencies to build this post's page."""
+        """Return a list of file dependencies to build this post's page."""
         deps = []
         if self.default_lang in self.translated_to:
             deps.append(self.base_path)
@@ -324,6 +431,19 @@ class Post(object):
             cand_2 = get_translation_candidate(self.config, self.base_path, lang)
             if os.path.exists(cand_1):
                 deps.extend([cand_1, cand_2])
+        deps += self._get_dependencies(self._dependency_file_page[lang])
+        deps += self._get_dependencies(self._dependency_file_page[None])
+        return deps
+
+    def deps_uptodate(self, lang):
+        """Return a list of uptodate dependencies to build this post's page.
+
+        These dependencies should be included in ``uptodate`` for the task
+        which generates the page."""
+        deps = []
+        deps += self._get_dependencies(self._dependency_uptodate_page[lang])
+        deps += self._get_dependencies(self._dependency_uptodate_page[None])
+        deps.append(utils.config_changed({1: sorted(self.compiler.config_dependencies)}, 'nikola.post.Post.deps_uptodate:compiler:' + self.source_path))
         return deps
 
     def compile(self, lang):
@@ -347,34 +467,41 @@ class Post(object):
             dest,
             self.is_two_file),
         if self.meta('password'):
+            # TODO: get rid of this feature one day (v8?; warning added in v7.3.0.)
+            LOGGER.warn("The post {0} is using the `password` attribute, which may stop working in the future.")
+            LOGGER.warn("Please consider switching to a more secure method of encryption.")
+            LOGGER.warn("More details: https://github.com/getnikola/nikola/issues/1547")
             wrap_encrypt(dest, self.meta('password'))
         if self.publish_later:
             LOGGER.notice('{0} is scheduled to be published in the future ({1})'.format(
                 self.source_path, self.date))
 
-    def extra_deps(self):
-        """get extra depepencies from .dep files
-        This file is created by ReST
-        """
-        dep_path = self.base_path + '.dep'
-        if os.path.isfile(dep_path):
-            with io.open(dep_path, 'r+', encoding='utf8') as depf:
-                return [l.strip() for l in depf.readlines()]
-        return []
-
     def fragment_deps(self, lang):
-        """Return a list of dependencies to build this post's fragment."""
+        """Return a list of uptodate dependencies to build this post's fragment.
+
+        These dependencies should be included in ``uptodate`` for the task
+        which generates the fragment."""
         deps = []
         if self.default_lang in self.translated_to:
             deps.append(self.source_path)
         if os.path.isfile(self.metadata_path):
             deps.append(self.metadata_path)
-        deps.extend(self.extra_deps())
         lang_deps = []
         if lang != self.default_lang:
             lang_deps = [get_translation_candidate(self.config, d, lang) for d in deps]
             deps += lang_deps
-        return [d for d in deps if os.path.exists(d)]
+        deps = [d for d in deps if os.path.exists(d)]
+        deps += self._get_dependencies(self._dependency_file_fragment[lang])
+        deps += self._get_dependencies(self._dependency_file_fragment[None])
+        return deps
+
+    def fragment_deps_uptodate(self, lang):
+        """Return a list of file dependencies to build this post's fragment."""
+        deps = []
+        deps += self._get_dependencies(self._dependency_uptodate_fragment[lang])
+        deps += self._get_dependencies(self._dependency_uptodate_fragment[None])
+        deps.append(utils.config_changed({1: sorted(self.compiler.config_dependencies)}, 'nikola.post.Post.deps_uptodate:compiler:' + self.source_path))
+        return deps
 
     def is_translation_available(self, lang):
         """Return true if the translation actually exists."""
@@ -408,7 +535,8 @@ class Post(object):
         else:
             return get_translation_candidate(self.config, self.base_path, sorted(self.translated_to)[0])
 
-    def text(self, lang=None, teaser_only=False, strip_html=False, show_read_more_link=True, rss_read_more_link=False):
+    def text(self, lang=None, teaser_only=False, strip_html=False, show_read_more_link=True,
+             rss_read_more_link=False, rss_links_append_query=None):
         """Read the post file for that language and return its contents.
 
         teaser_only=True breaks at the teaser marker and returns only the teaser.
@@ -424,8 +552,16 @@ class Post(object):
         if lang is None:
             lang = nikola.utils.LocaleBorg().current_lang
         file_name = self._translated_file_path(lang)
+
+        # Yes, we compile it and screw it.
+        # This may be controversial, but the user (or someone) is asking for the post text
+        # and the post should not just refuse to give it.
+        if not os.path.isfile(file_name):
+            self.compile(lang)
+
         with io.open(file_name, "r", encoding="utf8") as post_file:
             data = post_file.read().strip()
+
         if self.compiler.extension() == '.php':
             return data
         try:
@@ -458,7 +594,7 @@ class Post(object):
                     else:
                         l = self.config['RSS_READ_MORE_LINK'](lang) if rss_read_more_link else self.config['INDEX_READ_MORE_LINK'](lang)
                         teaser += l.format(
-                            link=self.permalink(lang),
+                            link=self.permalink(lang, query=rss_links_append_query),
                             read_more=self.messages[lang]["Read more"],
                             min_remaining_read=self.messages[lang]["%d min remaining to read"] % (self.remaining_reading_time),
                             reading_time=self.reading_time,
@@ -498,7 +634,12 @@ class Post(object):
             text = self.text(strip_html=True)
             words_per_minute = 220
             words = len(text.split())
-            self._reading_time = int(ceil(words / words_per_minute)) or 1
+            markup = lxml.html.fromstring(self.text(strip_html=False))
+            embeddables = [".//img", ".//picture", ".//video", ".//audio", ".//object", ".//iframe"]
+            media_time = 0
+            for embedded in embeddables:
+                media_time += (len(markup.findall(embedded)) * 0.33)  # +20 seconds
+            self._reading_time = int(ceil((words / words_per_minute) + media_time)) or 1
         return self._reading_time
 
     @property
@@ -574,9 +715,11 @@ class Post(object):
                                 self.folder, self.meta[lang]['slug'] + extension)
         if sep != os.sep:
             path = path.replace(os.sep, sep)
+        if path.startswith('./'):
+            path = path[2:]
         return path
 
-    def permalink(self, lang=None, absolute=False, extension='.html'):
+    def permalink(self, lang=None, absolute=False, extension='.html', query=None):
         if lang is None:
             lang = nikola.utils.LocaleBorg().current_lang
 
@@ -596,9 +739,24 @@ class Post(object):
             link = urljoin(self.base_url, link[1:])
         index_len = len(self.index_file)
         if self.strip_indexes and link[-(1 + index_len):] == '/' + self.index_file:
-            return link[:-index_len]
-        else:
-            return link
+            link = link[:-index_len]
+        if query:
+            link = link + "?" + query
+        return link
+
+    @property
+    def previewimage(self, lang=None):
+        if lang is None:
+            lang = nikola.utils.LocaleBorg().current_lang
+
+        image_path = self.meta[lang]['previewimage']
+
+        if not image_path:
+            return None
+
+        # This is further parsed by the template, because we don’t have access
+        # to the URL replacer here.  (Issue #1473)
+        return image_path
 
     def source_ext(self, prefix=False):
         """
@@ -679,6 +837,8 @@ def _get_metadata_from_file(meta_data):
     >>> g = _get_metadata_from_file
     >>> list(g([]).values())
     []
+    >>> str(g(["======","FooBar","======"])["title"])
+    'FooBar'
     >>> str(g(["FooBar","======"])["title"])
     'FooBar'
     >>> str(g(["#FooBar"])["title"])
@@ -714,6 +874,10 @@ def _get_metadata_from_file(meta_data):
             if re_rst_title.findall(line) and i > 0:
                 meta['title'] = meta_data[i - 1].strip()
         if 'title' not in meta:
+            if (re_rst_title.findall(line) and i >= 0 and
+                    re_rst_title.findall(meta_data[i + 2])):
+                meta['title'] = meta_data[i + 1].strip()
+        if 'title' not in meta:
             if re_md_title.findall(line):
                 meta['title'] = re_md_title.findall(line)[0]
 
@@ -726,6 +890,7 @@ def _get_metadata_from_file(meta_data):
 
 def get_metadata_from_meta_file(path, config=None, lang=None):
     """Takes a post path, and gets data from a matching .meta file."""
+    global _UPGRADE_METADATA_ADVERTISED
     meta_path = os.path.splitext(path)[0] + '.meta'
     if lang and config:
         meta_path = get_translation_candidate(config, meta_path, lang)
@@ -746,8 +911,12 @@ def get_metadata_from_meta_file(path, config=None, lang=None):
         if newstylemeta:
             # New-style metadata is basically the same as reading metadata from
             # a 1-file post.
-            return get_metadata_from_file(path, config, lang)
+            return get_metadata_from_file(path, config, lang), newstylemeta
         else:
+            if not _UPGRADE_METADATA_ADVERTISED:
+                LOGGER.warn("Some posts on your site have old-style metadata. You should upgrade them to the new format, with support for extra fields.")
+                LOGGER.warn("Install the 'upgrade_metadata' plugin (with 'nikola plugin -i upgrade_metadata') and run 'nikola upgrade_metadata'.")
+                _UPGRADE_METADATA_ADVERTISED = True
             while len(meta_data) < 7:
                 meta_data.append("")
             (title, slug, date, tags, link, description, _type) = [
@@ -770,7 +939,7 @@ def get_metadata_from_meta_file(path, config=None, lang=None):
             if _type:
                 meta['type'] = _type
 
-            return meta
+            return meta, newstylemeta
 
     elif lang:
         # Metadata file doesn't exist, but not default language,
@@ -778,7 +947,7 @@ def get_metadata_from_meta_file(path, config=None, lang=None):
         # This makes the 2-file format detection more reliable (Issue #525)
         return get_metadata_from_meta_file(path, config, lang=None)
     else:
-        return {}
+        return {}, True
 
 
 def get_meta(post, file_metadata_regexp=None, unslugify_titles=False, lang=None):
@@ -797,18 +966,24 @@ def get_meta(post, file_metadata_regexp=None, unslugify_titles=False, lang=None)
     except AttributeError:
         config = None
 
-    meta.update(get_metadata_from_meta_file(post.metadata_path, config, lang))
+    _, newstylemeta = get_metadata_from_meta_file(post.metadata_path, config, lang)
+    meta.update(_)
 
-    if meta:
-        return meta
-    post.is_two_file = False
+    if not meta:
+        post.is_two_file = False
 
     if file_metadata_regexp is not None:
         meta.update(_get_metadata_from_filename_by_regex(post.source_path,
                                                          file_metadata_regexp,
                                                          unslugify_titles))
 
-    meta.update(get_metadata_from_file(post.source_path, config, lang))
+    if getattr(post, 'compiler', None):
+        compiler_meta = post.compiler.read_metadata(post, file_metadata_regexp, unslugify_titles, lang)
+        meta.update(compiler_meta)
+
+    if not post.is_two_file:
+        # Meta file has precedence over file, which can contain garbage.
+        meta.update(get_metadata_from_file(post.source_path, config, lang))
 
     if lang is None:
         # Only perform these checks for the default language
@@ -823,15 +998,33 @@ def get_meta(post, file_metadata_regexp=None, unslugify_titles=False, lang=None)
             meta['title'] = os.path.splitext(
                 os.path.basename(post.source_path))[0]
 
-    return meta
+    return meta, newstylemeta
 
 
-def hyphenate(dom, lang):
-    if pyphen is not None:
-        hyphenator = pyphen.Pyphen(lang=lang)
+def hyphenate(dom, _lang):
+    # circular import prevention
+    from .nikola import LEGAL_VALUES
+    lang = LEGAL_VALUES['PYPHEN_LOCALES'].get(_lang, pyphen.language_fallback(_lang))
+    if pyphen is not None and lang is not None:
+        # If pyphen does exist, we tell the user when configuring the site.
+        # If it does not support a language, we ignore it quietly.
+        try:
+            hyphenator = pyphen.Pyphen(lang=lang)
+        except KeyError:
+            LOGGER.error("Cannot find hyphenation dictoniaries for {0} (from {1}).".format(lang, _lang))
+            LOGGER.error("Pyphen cannot be installed to ~/.local (pip install --user).")
         for tag in ('p', 'li', 'span'):
             for node in dom.xpath("//%s[not(parent::pre)]" % tag):
-                insert_hyphens(node, hyphenator)
+                skip_node = False
+                skippable_nodes = ['kbd', 'code', 'samp', 'mark', 'math', 'data', 'ruby', 'svg']
+                if node.getchildren():
+                    for child in node.getchildren():
+                        if child.tag in skippable_nodes or (child.tag == 'span' and 'math' in child.get('class', [])):
+                            skip_node = True
+                elif 'math' in node.get('class', []):
+                    skip_node = True
+                if not skip_node:
+                    insert_hyphens(node, hyphenator)
     return dom
 
 

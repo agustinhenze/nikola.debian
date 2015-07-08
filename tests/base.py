@@ -203,6 +203,7 @@ class FakeSite(object):
             'DEFAULT_LANG': 'en',
             'MARKDOWN_EXTENSIONS': ['fenced_code', 'codehilite'],
             'TRANSLATIONS_PATTERN': '{path}.{lang}.{ext}',
+            'LISTINGS_FOLDERS': {'listings': 'listings'},
         }
         self.EXTRA_PLUGINS = self.config['EXTRA_PLUGINS']
         self.plugin_manager = PluginManager(categories_filter={
@@ -233,6 +234,7 @@ class FakeSite(object):
                      slug='fake-post')
         ]
         self.debug = True
+        self.rst_transforms = []
         # This is to make plugin initialization happy
         self.template_system = self
         self.name = 'mako'

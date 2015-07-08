@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -27,6 +27,12 @@
 from __future__ import absolute_import
 import sys
 import os
+import re
+
+from yapsy.IPlugin import IPlugin
+from doit.cmd_base import Command as DoitCommand
+
+from .utils import LOGGER, first_line
 
 __all__ = [
     'Command',
@@ -37,13 +43,10 @@ __all__ = [
     'Task',
     'TaskMultiplier',
     'TemplateSystem',
-    'SignalHandler'
+    'SignalHandler',
+    'ConfigPlugin',
+    'PostScanner',
 ]
-
-from yapsy.IPlugin import IPlugin
-from doit.cmd_base import Command as DoitCommand
-
-from .utils import LOGGER, first_line
 
 
 class BasePlugin(IPlugin):
@@ -75,6 +78,18 @@ class BasePlugin(IPlugin):
             # so let’s just ignore it and be done with it.
             pass
 
+    def inject_dependency(self, target, dependency):
+        """Add 'dependency' to the target task's task_deps"""
+        self.site.injected_deps[target].append(dependency)
+
+
+class PostScanner(BasePlugin):
+    """The scan method of these plugins is called by Nikola.scan_posts."""
+
+    def scan(self):
+        """Creates a list of posts from some source. Returns a list of Post objects."""
+        raise NotImplementedError()
+
 
 class Command(BasePlugin, DoitCommand):
     """These plugins are exposed via the command line.
@@ -93,13 +108,21 @@ class Command(BasePlugin, DoitCommand):
         BasePlugin.__init__(self, *args, **kwargs)
         DoitCommand.__init__(self)
 
-    def execute(self, options={}, args=[]):
+    def __call__(self, config=None, **kwargs):
+        self._doitargs = kwargs
+        DoitCommand.__init__(self, config, **kwargs)
+        return self
+
+    def execute(self, options=None, args=None):
         """Check if the command can run in the current environment,
         fail if needed, or call _execute."""
+        options = options or {}
+        args = args or []
+
         if self.needs_config and not self.site.configured:
             LOGGER.error("This command needs to run inside an existing Nikola site.")
             return False
-        self._execute(options, args)
+        return self._execute(options, args)
 
     def _execute(self, options, args):
         """Do whatever this command does.
@@ -117,7 +140,7 @@ def help(self):
     text.append('')
 
     text.append("Options:")
-    for opt in self.options:
+    for opt in self.cmdparser.options:
         text.extend(opt.help_doc())
 
     if self.doc_description is not None:
@@ -208,20 +231,28 @@ class TaskMultiplier(BasePlugin):
 class PageCompiler(BasePlugin):
     """Plugins that compile text files into HTML."""
 
-    name = "dummy compiler"
+    name = "dummy_compiler"
+    friendly_name = ''
     demote_headers = False
     supports_onefile = True
-    default_metadata = {}
-
     default_metadata = {
         'title': '',
         'slug': '',
         'date': '',
         'tags': '',
+        'category': '',
         'link': '',
         'description': '',
         'type': 'text',
     }
+    config_dependencies = []
+
+    def register_extra_dependencies(self, post):
+        """Add additional dependencies to the post object.
+
+        Current main use is the ReST page compiler, which puts extra
+        dependencies into a .deb file."""
+        pass
 
     def compile_html(self, source, dest, is_two_file=False):
         """Compile the source, save it on dest."""
@@ -235,6 +266,23 @@ class PageCompiler(BasePlugin):
         """The preferred extension for the output of this compiler."""
         return ".html"
 
+    def read_metadata(self, post, file_metadata_regexp=None, unslugify_titles=False, lang=None):
+        """
+        Read the metadata from a post, and return a metadata dict
+        """
+        return {}
+
+    def split_metadata(self, data):
+        """Split data from metadata in the raw post content.
+
+        This splits in the first empty line that is NOT at the beginning
+        of the document."""
+        split_result = re.split('(\n\n|\r\n\r\n)', data.lstrip(), maxsplit=1)
+        if len(split_result) == 1:
+            return '', split_result[0]
+        # ['metadata', '\n\n', 'post content']
+        return split_result[0], split_result[-1]
+
 
 class RestExtension(BasePlugin):
     name = "dummy_rest_extension"
@@ -246,6 +294,11 @@ class MarkdownExtension(BasePlugin):
 
 class SignalHandler(BasePlugin):
     name = "dummy_signal_handler"
+
+
+class ConfigPlugin(BasePlugin):
+    """A plugin that can edit config (or modify the site) on-the-fly."""
+    name = "dummy_config_plugin"
 
 
 class Importer(Command):

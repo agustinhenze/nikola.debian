@@ -9,6 +9,8 @@ import os
 import re
 import sys
 import glob
+import subprocess
+import io
 
 
 def sed_like_thing(pattern, repl, path):
@@ -30,8 +32,16 @@ if __name__ == "__main__":
         sed_like_thing(":Version: .*", ":Version: {0}".format(version), doc)
 
     sed_like_thing("version='.+'", "version='{0}'".format(version), 'setup.py')
-    sed_like_thing("version = '.+'", "version = '{0}'".format(version), os.path.join('docs', 'sphinx', 'conf.py'))
-    sed_like_thing("release = '.+'", "release = '{0}'".format(version), os.path.join('docs', 'sphinx', 'conf.py'))
+    sed_like_thing("version = .*", "version = '{0}'".format(version), os.path.join('docs', 'sphinx', 'conf.py'))
+    sed_like_thing("release = .*", "release = '{0}'".format(version), os.path.join('docs', 'sphinx', 'conf.py'))
     sed_like_thing('__version__ = ".*"', '__version__ = "{0}"'.format(version), os.path.join('nikola', '__init__.py'))
     sed_like_thing('New in master', 'New in v{0}'.format(version), 'CHANGES.txt')
-    os.system("help2man -h help -N --version-string='{0}' nikola > {1}".format(version, os.path.join('docs', 'man', 'nikola.1')))
+    sed_like_thing(':Version: .*', ':Version: Nikola v{0}'.format(version), os.path.join('docs', 'man', 'nikola.rst'))
+    man = subprocess.check_output(["rst2man", os.path.join('docs', 'man', 'nikola.rst')])
+    with io.open(os.path.join('docs', 'man', 'nikola.1'), 'w', encoding='utf-8') as fh:
+        try:
+            man = man.decode('utf-8')
+        except AttributeError:
+            pass
+        fh.write(man)
+    subprocess.call(["gzip", "-f", os.path.join('docs', 'man', 'nikola.1')])

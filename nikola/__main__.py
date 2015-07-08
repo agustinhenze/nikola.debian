@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -25,7 +25,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import print_function, unicode_literals
-from operator import attrgetter
+from collections import defaultdict
 import os
 import shutil
 try:
@@ -49,9 +49,17 @@ from blinker import signal
 from . import __version__
 from .plugin_categories import Command
 from .nikola import Nikola
-from .utils import _reload, sys_decode, get_root_dir, req_missing, LOGGER, STRICT_HANDLER, ColorfulStderrHandler
+from .utils import sys_decode, sys_encode, get_root_dir, req_missing, LOGGER, STRICT_HANDLER, ColorfulStderrHandler
+
+if sys.version_info[0] == 3:
+    import importlib.machinery
+else:
+    import imp
 
 config = {}
+
+# DO NOT USE unless you know what you are doing!
+_RETURN_DOITNIKOLA = False
 
 
 def main(args=None):
@@ -63,15 +71,33 @@ def main(args=None):
 
     if args is None:
         args = sys.argv[1:]
+
+    oargs = args
+    args = [sys_decode(arg) for arg in args]
+
+    conf_filename = 'conf.py'
+    conf_filename_bytes = b'conf.py'
+    conf_filename_changed = False
+    for index, arg in enumerate(args):
+        if arg[:7] == '--conf=':
+            del args[index]
+            del oargs[index]
+            conf_filename = arg[7:]
+            conf_filename_bytes = sys_encode(arg[7:])
+            conf_filename_changed = True
+            break
+
     quiet = False
-    if len(args) > 0 and args[0] == b'build' and b'--strict' in args:
+    if len(args) > 0 and args[0] == 'build' and '--strict' in args:
         LOGGER.notice('Running in strict mode')
         STRICT_HANDLER.push_application()
-    if len(args) > 0 and args[0] == b'build' and b'-q' in args or b'--quiet' in args:
+    if len(args) > 0 and args[0] == 'build' and '-q' in args or '--quiet' in args:
         nullhandler = NullHandler()
         nullhandler.push_application()
         quiet = True
     global config
+
+    original_cwd = os.getcwd()
 
     # Those commands do not require a `conf.py`.  (Issue #1132)
     # Moreover, actually having one somewhere in the tree can be bad, putting
@@ -82,25 +108,38 @@ def main(args=None):
         root = get_root_dir()
         if root:
             os.chdir(root)
+        # Help and imports don't require config, but can use one if it exists
+        needs_config_file = (argname != 'help') and not argname.startswith('import_')
+    else:
+        needs_config_file = False
 
     sys.path.append('')
     try:
-        import conf
-        _reload(conf)
+        if sys.version_info[0] == 3:
+            loader = importlib.machinery.SourceFileLoader("conf", conf_filename)
+            conf = loader.load_module()
+        else:
+            conf = imp.load_source("conf", conf_filename_bytes)
         config = conf.__dict__
     except Exception:
-        if os.path.exists('conf.py'):
+        if os.path.exists(conf_filename):
             msg = traceback.format_exc(0)
-            LOGGER.error('conf.py cannot be parsed.\n{0}'.format(msg))
-            sys.exit(1)
+            LOGGER.error('"{0}" cannot be parsed.\n{1}'.format(conf_filename, msg))
+            return 1
+        elif needs_config_file and conf_filename_changed:
+            LOGGER.error('Cannot find configuration file "{0}".'.format(conf_filename))
+            return 1
         config = {}
+
+    if conf_filename_changed:
+        LOGGER.info("Using config file '{0}'".format(conf_filename))
 
     invariant = False
 
-    if len(args) > 0 and args[0] == b'build' and b'--invariant' in args:
+    if len(args) > 0 and args[0] == 'build' and '--invariant' in args:
         try:
             import freezegun
-            freeze = freezegun.freeze_time("2014-01-01")
+            freeze = freezegun.freeze_time("2038-01-01")
             freeze.start()
             invariant = True
         except ImportError:
@@ -114,9 +153,13 @@ def main(args=None):
     config['__colorful__'] = colorful
     config['__invariant__'] = invariant
     config['__quiet__'] = quiet
-
+    config['__configuration_filename__'] = conf_filename
+    config['__cwd__'] = original_cwd
     site = Nikola(**config)
-    _ = DoitNikola(site, quiet).run(args)
+    DN = DoitNikola(site, quiet)
+    if _RETURN_DOITNIKOLA:
+        return DN
+    _ = DN.run(oargs)
 
     if site.invariant:
         freeze.stop()
@@ -135,10 +178,11 @@ class Help(DoitHelp):
         #          --strict, --invariant and --quiet.
         del cmds['run']
 
-        print("Nikola is a tool to create static websites and blogs. For full documentation and more information, please visit http://getnikola.com/\n\n")
+        print("Nikola is a tool to create static websites and blogs. For full documentation and more information, please visit https://getnikola.com/\n\n")
         print("Available commands:")
-        for cmd in sorted(cmds.values(), key=attrgetter('name')):
-            print("  nikola %-*s %s" % (20, cmd.name, cmd.doc_purpose))
+        for cmd_name in sorted(cmds.keys()):
+            cmd = cmds[cmd_name]
+            print("  nikola {:20s} {}".format(cmd_name, cmd.doc_purpose))
         print("")
         print("  nikola help                 show help / reference")
         print("  nikola help <command>       show command usage")
@@ -214,12 +258,13 @@ class NikolaTaskLoader(TaskLoader):
                 'outfile': sys.stderr,
             }
         DOIT_CONFIG['default_tasks'] = ['render_site', 'post_render']
+        DOIT_CONFIG.update(self.nikola._doit_config)
         tasks = generate_tasks(
             'render_site',
             self.nikola.gen_tasks('render_site', "Task", 'Group of tasks to render the site.'))
         latetasks = generate_tasks(
             'post_render',
-            self.nikola.gen_tasks('post_render', "LateTask", 'Group of tasks to be executes after site is rendered.'))
+            self.nikola.gen_tasks('post_render', "LateTask", 'Group of tasks to be executed after site is rendered.'))
         signal('initialized').send(self.nikola)
         return tasks + latetasks, DOIT_CONFIG
 
@@ -230,20 +275,21 @@ class DoitNikola(DoitMain):
     TASK_LOADER = NikolaTaskLoader
 
     def __init__(self, nikola, quiet=False):
+        super(DoitNikola, self).__init__()
         self.nikola = nikola
         nikola.doit = self
         self.task_loader = self.TASK_LOADER(nikola, quiet)
 
-    def get_commands(self):
+    def get_cmds(self):
         # core doit commands
-        cmds = DoitMain.get_commands(self)
+        cmds = DoitMain.get_cmds(self)
         # load nikola commands
         for name, cmd in self.nikola._commands.items():
             cmds[name] = cmd
         return cmds
 
     def run(self, cmd_args):
-        sub_cmds = self.get_commands()
+        sub_cmds = self.get_cmds()
         args = self.process_args(cmd_args)
         args = [sys_decode(arg) for arg in args]
 
@@ -270,18 +316,30 @@ class DoitNikola(DoitMain):
             args = ['version']
         if args[0] not in sub_cmds.keys():
             LOGGER.error("Unknown command {0}".format(args[0]))
-            return False
-        if not isinstance(sub_cmds[args[0]], (Command, Help)):  # Is a doit command
+            sugg = defaultdict(list)
+            for c in sub_cmds.keys():
+                d = lev(c, args[0])
+                sugg[d].append(c)
+            LOGGER.info('Did you mean "{}"?', '" or "'.join(sugg[min(sugg.keys())]))
+            return 3
+        if sub_cmds[args[0]] is not Help and not isinstance(sub_cmds[args[0]], Command):  # Is a doit command
             if not self.nikola.configured:
                 LOGGER.error("This command needs to run inside an "
                              "existing Nikola site.")
-                return False
-
+                return 3
         return super(DoitNikola, self).run(cmd_args)
 
     @staticmethod
     def print_version():
         print("Nikola v" + __version__)
+
+
+# Stolen from http://stackoverflow.com/questions/4173579/implementing-levenshtein-distance-in-python
+def lev(a, b):
+    if not a or not b:
+        return max(len(a), len(b))
+    return min(lev(a[1:], b[1:]) + (a[0] != b[0]), lev(a[1:], b) + 1, lev(a, b[1:]) + 1)
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

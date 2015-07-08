@@ -7,7 +7,7 @@
 {% block content %}
     {{ ui.bar(crumbs) }}
     {% if title %}
-    <h1>{{ title }}</h1>
+    <h1>{{ title|e }}</h1>
     {% endif %}
     {% if post %}
     <p>
@@ -33,4 +33,9 @@
 {% if site_has_comments and enable_comments %}
     {{ comments.comment_form(None, permalink, title) }}
 {% endif %}
+{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="alternate" type="application/rss+xml" title="RSS" href="rss.xml">
 {% endblock %}

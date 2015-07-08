@@ -2,7 +2,8 @@
 from __future__ import unicode_literals
 
 MESSAGES = {
-    "%d min remaining to read": "",
+    "%d min remaining to read": "%d minuuttia lukuaikaa",
+    "(active)": "",
     "Also available in:": "Saatavilla myös:",
     "Archive": "Arkisto",
     "Categories": "Kategoriat",
@@ -19,16 +20,20 @@ MESSAGES = {
     "Posted:": "Postattu:",
     "Posts about %s": "Postauksia aiheesta %s",
     "Posts for year %s": "Postauksia vuodelta %s",
+    "Posts for {month} {day}, {year}": "",
     "Posts for {month} {year}": "Postauksia ajalle {month} {year}",
     "Previous post": "Vanhempia postauksia",
     "Publication date": "Julkaisupäivämäärä",
     "RSS feed": "RSS syöte",
     "Read in English": "Lue suomeksi",
     "Read more": "Lue lisää",
-    "Skip to main content": "",
+    "Skip to main content": "Hyppää sisältöön",
     "Source": "Lähde",
+    "Subcategories:": "",
     "Tags and Categories": "Tagit ja kategoriat",
     "Tags": "Tagit",
+    "Write your page here.": "",
+    "Write your post here.": "",
     "old posts, page %d": "vanhoja postauksia, sivu %d",
     "page %d": "sivu %d",
 }

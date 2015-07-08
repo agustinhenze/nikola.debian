@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -28,6 +28,8 @@ from __future__ import unicode_literals, print_function
 import os
 import re
 import sys
+import datetime
+import requests
 from lxml import etree
 
 try:
@@ -35,11 +37,6 @@ try:
     from urllib import unquote
 except ImportError:
     from urllib.parse import urlparse, unquote  # NOQA
-
-try:
-    import requests
-except ImportError:
-    requests = None  # NOQA
 
 try:
     import phpserialize
@@ -87,6 +84,13 @@ class CommandImportWordpress(Command, ImportMixin):
             'help': "Do not try to download files for the import",
         },
         {
+            'name': 'download_auth',
+            'long': 'download-auth',
+            'default': None,
+            'type': str,
+            'help': "Specify username and password for HTTP authentication (separated by ':')",
+        },
+        {
             'name': 'separate_qtranslate_content',
             'long': 'qtranslate',
             'default': False,
@@ -104,6 +108,7 @@ class CommandImportWordpress(Command, ImportMixin):
             'help': "The pattern for translation files names",
         },
     ]
+    all_tags = set([])
 
     def _execute(self, options={}, args=[]):
         """Import a WordPress blog from an export file into a Nikola site."""
@@ -133,6 +138,14 @@ class CommandImportWordpress(Command, ImportMixin):
         self.exclude_drafts = options.get('exclude_drafts', False)
         self.no_downloads = options.get('no_downloads', False)
 
+        self.auth = None
+        if options.get('download_auth') is not None:
+            username_password = options.get('download_auth')
+            self.auth = tuple(username_password.split(':', 1))
+            if len(self.auth) < 2:
+                print("Please specify HTTP authentication credentials in the form username:password.")
+                return False
+
         self.separate_qtranslate_content = options.get('separate_qtranslate_content')
         self.translations_pattern = options.get('translations_pattern')
 
@@ -149,11 +162,7 @@ class CommandImportWordpress(Command, ImportMixin):
                         package=modulename)
                 )
 
-            if requests is None and phpserialize is None:
-                req_missing(['requests', 'phpserialize'], 'import WordPress dumps without --no-downloads')
-            elif requests is None:
-                req_missing(['requests'], 'import WordPress dumps without --no-downloads')
-            elif phpserialize is None:
+            if phpserialize is None:
                 req_missing(['phpserialize'], 'import WordPress dumps without --no-downloads')
 
         channel = self.get_channel_from_file(self.wordpress_export_file)
@@ -172,6 +181,19 @@ class CommandImportWordpress(Command, ImportMixin):
             self.extra_languages)
         self.context['REDIRECTIONS'] = self.configure_redirections(
             self.url_map)
+
+        # Add tag redirects
+        for tag in self.all_tags:
+            try:
+                tag_str = tag.decode('utf8')
+            except AttributeError:
+                tag_str = tag
+            tag = utils.slugify(tag_str)
+            src_url = '{}tag/{}'.format(self.context['SITE_URL'], tag)
+            dst_url = self.site.link('tag', tag)
+            if src_url != dst_url:
+                self.url_map[src_url] = dst_url
+
         self.write_urlmap_csv(
             os.path.join(self.output_folder, 'url_map.csv'), self.url_map)
         rendered_template = conf_template.render(**prepare_config(self.context))
@@ -186,26 +208,6 @@ class CommandImportWordpress(Command, ImportMixin):
                                  rendered_template)
 
     @classmethod
-    def _glue_xml_lines(cls, xml):
-        new_xml = xml[0]
-        previous_line_ended_in_newline = new_xml.endswith(b'\n')
-        previous_line_was_indentet = False
-        for line in xml[1:]:
-            if (re.match(b'^[ \t]+', line) and previous_line_ended_in_newline):
-                new_xml = b''.join((new_xml, line))
-                previous_line_was_indentet = True
-            elif previous_line_was_indentet:
-                new_xml = b''.join((new_xml, line))
-                previous_line_was_indentet = False
-            else:
-                new_xml = b'\n'.join((new_xml, line))
-                previous_line_was_indentet = False
-
-            previous_line_ended_in_newline = line.endswith(b'\n')
-
-        return new_xml
-
-    @classmethod
     def read_xml_file(cls, filename):
         xml = []
 
@@ -215,8 +217,7 @@ class CommandImportWordpress(Command, ImportMixin):
                 if b'<atom:link rel=' in line:
                     continue
                 xml.append(line)
-
-        return cls._glue_xml_lines(xml)
+        return b'\n'.join(xml)
 
     @classmethod
     def get_channel_from_file(cls, filename):
@@ -255,9 +256,15 @@ class CommandImportWordpress(Command, ImportMixin):
             '{{{0}}}author_display_name'.format(wordpress_namespace),
             "Joe Example")
         context['POSTS'] = '''(
+            ("posts/*.rst", "posts", "post.tmpl"),
+            ("posts/*.txt", "posts", "post.tmpl"),
+            ("posts/*.md", "posts", "post.tmpl"),
             ("posts/*.wp", "posts", "post.tmpl"),
         )'''
         context['PAGES'] = '''(
+            ("stories/*.rst", "stories", "story.tmpl"),
+            ("stories/*.txt", "stories", "story.tmpl"),
+            ("stories/*.md", "stories", "story.tmpl"),
             ("stories/*.wp", "stories", "story.tmpl"),
         )'''
         context['COMPILERS'] = '''{
@@ -274,8 +281,12 @@ class CommandImportWordpress(Command, ImportMixin):
             return
 
         try:
+            request = requests.get(url, auth=self.auth)
+            if request.status_code >= 400:
+                LOGGER.warn("Downloading {0} to {1} failed with HTTP status code {2}".format(url, dst_path, request.status_code))
+                return
             with open(dst_path, 'wb+') as fd:
-                fd.write(requests.get(url).content)
+                fd.write(request.content)
         except requests.exceptions.ConnectionError as err:
             LOGGER.warn("Downloading {0} to {1} failed: {2}".format(url, dst_path, err))
 
@@ -285,8 +296,7 @@ class CommandImportWordpress(Command, ImportMixin):
         link = get_text_tag(item, '{{{0}}}link'.format(wordpress_namespace),
                             'foo')
         path = urlparse(url).path
-        dst_path = os.path.join(*([self.output_folder, 'files']
-                                  + list(path.split('/'))))
+        dst_path = os.path.join(*([self.output_folder, 'files'] + list(path.split('/'))))
         dst_dir = os.path.dirname(dst_path)
         utils.makedirs(dst_dir)
         LOGGER.info("Downloading {0} => {1}".format(url, dst_path))
@@ -306,7 +316,6 @@ class CommandImportWordpress(Command, ImportMixin):
             return
 
         additional_metadata = item.findall('{{{0}}}postmeta'.format(wordpress_namespace))
-
         if additional_metadata is None:
             return
 
@@ -341,8 +350,7 @@ class CommandImportWordpress(Command, ImportMixin):
                     url = '/'.join([source_path, filename.decode('utf-8')])
 
                     path = urlparse(url).path
-                    dst_path = os.path.join(*([self.output_folder, 'files']
-                                              + list(path.split('/'))))
+                    dst_path = os.path.join(*([self.output_folder, 'files'] + list(path.split('/'))))
                     dst_dir = os.path.dirname(dst_path)
                     utils.makedirs(dst_dir)
                     LOGGER.info("Downloading {0} => {1}".format(url, dst_path))
@@ -351,13 +359,34 @@ class CommandImportWordpress(Command, ImportMixin):
                     links[url] = '/' + dst_url
                     links[url] = '/' + dst_url
 
-    @staticmethod
-    def transform_sourcecode(content):
-        new_content = re.sub('\[sourcecode language="([^"]+)"\]',
-                             "\n~~~~~~~~~~~~{.\\1}\n", content)
-        new_content = new_content.replace('[/sourcecode]',
-                                          "\n~~~~~~~~~~~~\n")
-        return new_content
+    code_re1 = re.compile(r'\[code.* lang.*?="(.*?)?".*\](.*?)\[/code\]', re.DOTALL | re.MULTILINE)
+    code_re2 = re.compile(r'\[sourcecode.* lang.*?="(.*?)?".*\](.*?)\[/sourcecode\]', re.DOTALL | re.MULTILINE)
+    code_re3 = re.compile(r'\[code.*?\](.*?)\[/code\]', re.DOTALL | re.MULTILINE)
+    code_re4 = re.compile(r'\[sourcecode.*?\](.*?)\[/sourcecode\]', re.DOTALL | re.MULTILINE)
+
+    def transform_code(self, content):
+        # http://en.support.wordpress.com/code/posting-source-code/. There are
+        # a ton of things not supported here. We only do a basic [code
+        # lang="x"] -> ```x translation, and remove quoted html entities (<,
+        # >, &, and ").
+        def replacement(m, c=content):
+            if len(m.groups()) == 1:
+                language = ''
+                code = m.group(0)
+            else:
+                language = m.group(1) or ''
+                code = m.group(2)
+            code = code.replace('&amp;', '&')
+            code = code.replace('&gt;', '>')
+            code = code.replace('&lt;', '<')
+            code = code.replace('&quot;', '"')
+            return '```{language}\n{code}\n```'.format(language=language, code=code)
+
+        content = self.code_re1.sub(replacement, content)
+        content = self.code_re2.sub(replacement, content)
+        content = self.code_re3.sub(replacement, content)
+        content = self.code_re4.sub(replacement, content)
+        return content
 
     @staticmethod
     def transform_caption(content):
@@ -374,10 +403,10 @@ class CommandImportWordpress(Command, ImportMixin):
             return content
 
     def transform_content(self, content):
-        new_content = self.transform_sourcecode(content)
-        new_content = self.transform_caption(new_content)
-        new_content = self.transform_multiple_newlines(new_content)
-        return new_content
+        content = self.transform_code(content)
+        content = self.transform_caption(content)
+        content = self.transform_multiple_newlines(content)
+        return content
 
     def import_item(self, item, wordpress_namespace, out_folder=None):
         """Takes an item from the feed and creates a post file."""
@@ -391,11 +420,10 @@ class CommandImportWordpress(Command, ImportMixin):
         parsed = urlparse(link)
         path = unquote(parsed.path.strip('/'))
 
-        # In python 2, path is a str. slug requires a unicode
-        # object. According to wikipedia, unquoted strings will
-        # usually be UTF8
-        if isinstance(path, utils.bytes_str):
+        try:
             path = path.decode('utf8')
+        except AttributeError:
+            pass
 
         # Cut out the base directory.
         if path.startswith(self.base_dir.strip('/')):
@@ -420,7 +448,13 @@ class CommandImportWordpress(Command, ImportMixin):
         description = get_text_tag(item, 'description', '')
         post_date = get_text_tag(
             item, '{{{0}}}post_date'.format(wordpress_namespace), None)
-        dt = utils.to_datetime(post_date)
+        try:
+            dt = utils.to_datetime(post_date)
+        except ValueError:
+            dt = datetime.datetime(1970, 1, 1, 0, 0, 0)
+            LOGGER.error('Malformed date "{0}" in "{1}" [{2}], assuming 1970-01-01 00:00:00 instead.'.format(post_date, title, slug))
+            post_date = dt.strftime('%Y-%m-%d %H:%M:%S')
+
         if dt.tzinfo and self.timezone is None:
             self.timezone = utils.get_tzname(dt)
         status = get_text_tag(
@@ -443,12 +477,20 @@ class CommandImportWordpress(Command, ImportMixin):
             if text == 'Uncategorized':
                 continue
             tags.append(text)
+            self.all_tags.add(text)
 
         if '$latex' in content:
             tags.append('mathjax')
 
+        # Find post format if it's there
+        post_format = 'wp'
+        format_tag = [x for x in item.findall('*//{%s}meta_key' % wordpress_namespace) if x.text == '_tc_post_format']
+        if format_tag:
+            post_format = format_tag[0].getparent().find('{%s}meta_value' % wordpress_namespace).text
+
         if is_draft and self.exclude_drafts:
             LOGGER.notice('Draft "{0}" will not be imported.'.format(title))
+
         elif content.strip():
             # If no content is found, no files are written.
             self.url_map[link] = (self.context['SITE_URL'] +
@@ -475,7 +517,8 @@ class CommandImportWordpress(Command, ImportMixin):
                     out_meta_filename = slug + '.meta'
                     out_content_filename = slug + '.wp'
                     meta_slug = slug
-                content = self.transform_content(content)
+                if post_format == 'wp':
+                    content = self.transform_content(content)
                 self.write_metadata(os.path.join(self.output_folder, out_folder,
                                                  out_meta_filename),
                                     title, meta_slug, post_date, description, tags)
@@ -510,7 +553,7 @@ def get_text_tag(tag, name, default):
     if tag is None:
         return default
     t = tag.find(name)
-    if t is not None:
+    if t is not None and t.text is not None:
         return t.text
     else:
         return default

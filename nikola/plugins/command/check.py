@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -25,6 +25,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import print_function
+from collections import defaultdict
 import os
 import re
 import sys
@@ -34,10 +35,26 @@ try:
 except ImportError:
     from urllib.parse import unquote, urlparse, urljoin, urldefrag  # NOQA
 
+from doit.loader import generate_tasks
 import lxml.html
+import requests
 
 from nikola.plugin_categories import Command
 from nikola.utils import get_logger
+
+
+def _call_nikola_list(site):
+    files = []
+    deps = defaultdict(list)
+    for task in generate_tasks('render_site', site.gen_tasks('render_site', "Task", '')):
+        files.extend(task.targets)
+        for target in task.targets:
+            deps[target].extend(task.file_dep)
+    for task in generate_tasks('post_render', site.gen_tasks('render_site', "LateTask", '')):
+        files.extend(task.targets)
+        for target in task.targets:
+            deps[target].extend(task.file_dep)
+    return files, deps
 
 
 def real_scan_files(site):
@@ -45,10 +62,9 @@ def real_scan_files(site):
     real_fnames = set([])
     output_folder = site.config['OUTPUT_FOLDER']
     # First check that all targets are generated in the right places
-    for task in os.popen('nikola list --all', 'r').readlines():
-        task = task.strip()
-        if output_folder in task and ':' in task:
-            fname = task.split(':', 1)[-1]
+    for fname in _call_nikola_list(site)[0]:
+        fname = fname.strip()
+        if fname.startswith(output_folder):
             task_fnames.add(fname)
     # And now check that there are no non-target files
     for root, dirs, files in os.walk(output_folder, followlinks=True):
@@ -68,7 +84,7 @@ def fs_relpath_from_url_path(url_path):
     url_path = unquote(url_path)
     # in windows relative paths don't begin with os.sep
     if sys.platform == 'win32' and len(url_path):
-        url_path = url_path[1:].replace('/', '\\')
+        url_path = url_path.replace('/', '\\')
     return url_path
 
 
@@ -78,7 +94,7 @@ class CommandCheck(Command):
     name = "check"
     logger = None
 
-    doc_usage = "-l [--find-sources] | -f"
+    doc_usage = "[-v] (-l [--find-sources] [-r] | -f [--clean-files])"
     doc_purpose = "check links and files in the generated site"
     cmd_options = [
         {
@@ -119,11 +135,18 @@ class CommandCheck(Command):
             'default': False,
             'help': 'Be more verbose.',
         },
+        {
+            'name': 'remote',
+            'long': 'remote',
+            'short': 'r',
+            'type': bool,
+            'default': False,
+            'help': 'Check that remote links work.',
+        },
     ]
 
     def _execute(self, options, args):
         """Check the generated site."""
-
         self.logger = get_logger('check', self.site.loghandlers)
 
         if not options['links'] and not options['files'] and not options['clean']:
@@ -134,59 +157,103 @@ class CommandCheck(Command):
         else:
             self.logger.level = 4
         if options['links']:
-            failure = self.scan_links(options['find_sources'])
+            failure = self.scan_links(options['find_sources'], options['remote'])
         if options['files']:
             failure = self.scan_files()
         if options['clean']:
             failure = self.clean_files()
         if failure:
-            sys.exit(1)
+            return 1
 
     existing_targets = set([])
+    checked_remote_targets = {}
 
-    def analyze(self, task, find_sources=False):
+    def analyze(self, fname, find_sources=False, check_remote=False):
         rv = False
         self.whitelist = [re.compile(x) for x in self.site.config['LINK_CHECK_WHITELIST']]
         base_url = urlparse(self.site.config['BASE_URL'])
         self.existing_targets.add(self.site.config['SITE_URL'])
         self.existing_targets.add(self.site.config['BASE_URL'])
         url_type = self.site.config['URL_TYPE']
-        if url_type == 'absolute':
-            url_netloc_to_root = urlparse(self.site.config['SITE_URL']).path
+
+        deps = {}
+        if find_sources:
+            deps = _call_nikola_list(self.site)[1]
+
+        if url_type in ('absolute', 'full_path'):
+            url_netloc_to_root = urlparse(self.site.config['BASE_URL']).path
         try:
-            filename = task.split(":")[-1]
-            d = lxml.html.fromstring(open(filename).read())
+            filename = fname
+
+            if filename.startswith(self.site.config['CACHE_FOLDER']):
+                # Do not look at links in the cache, which are not parsed by
+                # anyone and may result in false positives.  Problems arise
+                # with galleries, for example.  Full rationale: (Issue #1447)
+                self.logger.notice("Ignoring {0} (in cache, links may be incorrect)".format(filename))
+                return False
+
+            if not os.path.exists(fname):
+                # Quietly ignore files that don’t exist; use `nikola check -f` instead (Issue #1831)
+                return False
+
+            d = lxml.html.fromstring(open(filename, 'rb').read())
             for l in d.iterlinks():
-                target = l[0].attrib[l[1]]
+                target = l[2]
                 if target == "#":
                     continue
                 target, _ = urldefrag(target)
                 parsed = urlparse(target)
 
-                # Absolute links when using only paths, skip.
-                if (parsed.scheme or target.startswith('//')) and url_type in ('rel_path', 'full_path'):
-                    continue
+                # Warn about links from https to http (mixed-security)
+                if base_url.netloc == parsed.netloc and base_url.scheme == "https" and parsed.scheme == "http":
+                    self.logger.warn("Mixed-content security for link in {0}: {1}".format(filename, target))
 
                 # Absolute links to other domains, skip
-                if (parsed.scheme or target.startswith('//')) and parsed.netloc != base_url.netloc:
+                # Absolute links when using only paths, skip.
+                if ((parsed.scheme or target.startswith('//')) and parsed.netloc != base_url.netloc) or \
+                        ((parsed.scheme or target.startswith('//')) and url_type in ('rel_path', 'full_path')):
+                    if not check_remote or parsed.scheme not in ["http", "https"]:
+                        continue
+                    if parsed.netloc == base_url.netloc:  # absolute URL to self.site
+                        continue
+                    if target in self.checked_remote_targets:  # already checked this exact target
+                        if self.checked_remote_targets[target] > 399:
+                            self.logger.warn("Broken link in {0}: {1} [Error {2}]".format(filename, target, self.checked_remote_targets[target]))
+                        continue
+                    # Check the remote link works
+                    req_headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0 (Nikola)'}  # I’m a real boy!
+                    resp = requests.head(target, headers=req_headers)
+                    self.checked_remote_targets[target] = resp.status_code
+                    if resp.status_code > 399:  # Error
+                        self.logger.warn("Broken link in {0}: {1} [Error {2}]".format(filename, target, resp.status_code))
+                        continue
+                    elif resp.status_code <= 399:  # The address leads *somewhere* that is not an error
+                        self.logger.debug("Successfully checked remote link in {0}: {1} [HTTP: {2}]".format(filename, target, resp.status_code))
+                        continue
+                    self.logger.warn("Could not check remote link in {0}: {1} [Unknown problem]".format(filename, target))
                     continue
 
                 if url_type == 'rel_path':
-                    target_filename = os.path.abspath(
-                        os.path.join(os.path.dirname(filename), unquote(target)))
+                    if target.startswith('/'):
+                        target_filename = os.path.abspath(
+                            os.path.join(self.site.config['OUTPUT_FOLDER'], unquote(target.lstrip('/'))))
+                    else:  # Relative path
+                        target_filename = os.path.abspath(
+                            os.path.join(os.path.dirname(filename), unquote(target)))
 
                 elif url_type in ('full_path', 'absolute'):
                     if url_type == 'absolute':
                         # convert to 'full_path' case, ie url relative to root
-                        url_rel_path = target.path[len(url_netloc_to_root):]
+                        url_rel_path = parsed.path[len(url_netloc_to_root):]
                     else:
-                        url_rel_path = target.path
+                        # convert to relative to base path
+                        url_rel_path = target[len(url_netloc_to_root):]
                     if url_rel_path == '' or url_rel_path.endswith('/'):
                         url_rel_path = urljoin(url_rel_path, self.site.config['INDEX_FILE'])
                     fs_rel_path = fs_relpath_from_url_path(url_rel_path)
                     target_filename = os.path.join(self.site.config['OUTPUT_FOLDER'], fs_rel_path)
 
-                if any(re.match(x, target_filename) for x in self.whitelist):
+                if any(re.search(x, target_filename) for x in self.whitelist):
                     continue
                 elif target_filename not in self.existing_targets:
                     if os.path.exists(target_filename):
@@ -197,25 +264,22 @@ class CommandCheck(Command):
                         self.logger.warn("Broken link in {0}: {1}".format(filename, target))
                         if find_sources:
                             self.logger.warn("Possible sources:")
-                            self.logger.warn(os.popen('nikola list --deps ' + task, 'r').read())
+                            self.logger.warn("\n".join(deps[filename]))
                             self.logger.warn("===============================\n")
         except Exception as exc:
             self.logger.error("Error with: {0} {1}".format(filename, exc))
         return rv
 
-    def scan_links(self, find_sources=False):
+    def scan_links(self, find_sources=False, check_remote=False):
         self.logger.info("Checking Links:")
         self.logger.info("===============\n")
         self.logger.notice("{0} mode".format(self.site.config['URL_TYPE']))
         failure = False
-        for task in os.popen('nikola list --all', 'r').readlines():
-            task = task.strip()
-            if task.split(':')[0] in (
-                    'render_tags', 'render_archive',
-                    'render_galleries', 'render_indexes',
-                    'render_pages'
-                    'render_site') and '.html' in task:
-                if self.analyze(task, find_sources):
+        # Maybe we should just examine all HTML files
+        output_folder = self.site.config['OUTPUT_FOLDER']
+        for fname in _call_nikola_list(self.site)[0]:
+            if fname.startswith(output_folder) and '.html' == fname[-5:]:
+                if self.analyze(fname, find_sources, check_remote):
                     failure = True
         if not failure:
             self.logger.info("All links checked.")

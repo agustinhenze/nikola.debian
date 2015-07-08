@@ -30,6 +30,7 @@ def task_locale():
     def set_nikola_test_locales():
         try:
             out = subprocess.check_output(['locale', '-a'])
+            out = out.decode('utf-8')
             locales = []
             languages = set()
             for line in out.splitlines():
@@ -37,7 +38,7 @@ def task_locale():
                     lang = line.split('_')[0]
                     if lang not in languages:
                         try:
-                            locale.setlocale(locale.LC_ALL, line)
+                            locale.setlocale(locale.LC_ALL, str(line))
                         except:
                             continue
                         languages.add(lang)

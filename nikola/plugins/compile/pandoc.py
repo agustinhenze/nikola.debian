@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -30,6 +30,8 @@ You will need, of course, to install pandoc
 
 """
 
+from __future__ import unicode_literals
+
 import io
 import os
 import subprocess
@@ -42,11 +44,16 @@ class CompilePandoc(PageCompiler):
     """Compile markups into HTML using pandoc."""
 
     name = "pandoc"
+    friendly_name = "pandoc"
+
+    def set_site(self, site):
+        self.config_dependencies = [str(site.config['PANDOC_OPTIONS'])]
+        super(CompilePandoc, self).set_site(site)
 
     def compile_html(self, source, dest, is_two_file=True):
         makedirs(os.path.dirname(dest))
         try:
-            subprocess.check_call(('pandoc', '-o', dest, source))
+            subprocess.check_call(['pandoc', '-o', dest, source] + self.site.config['PANDOC_OPTIONS'])
         except OSError as e:
             if e.strreror == 'No such file or directory':
                 req_missing(['pandoc'], 'build this site (compile with pandoc)', python=False)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2013-2014 Udo Spallek, Roberto Alsina and others.
+# Copyright © 2013-2015 Udo Spallek, Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -25,7 +25,9 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 from __future__ import unicode_literals
 
+import os
 import uuid
+import natsort
 
 from docutils import nodes
 from docutils.parsers.rst import Directive, directives
@@ -52,7 +54,7 @@ class PostList(Directive):
     Post List
     =========
     :Directive Arguments: None.
-    :Directive Options: lang, start, stop, reverse, tags, template, id
+    :Directive Options: lang, start, stop, reverse, sort, tags, template, id
     :Directive Content: None.
 
     Provides a reStructuredText directive to create a list of posts.
@@ -76,6 +78,10 @@ class PostList(Directive):
     ``reverse`` : flag
         Reverse the order of the post-list.
         Defaults is to not reverse the order of posts.
+
+    ``sort``: string
+        Sort post list by one of each post's attributes, usually ``title`` or a
+        custom ``priority``.  Defaults to None (chronological sorting).
 
     ``tags`` : string [, string...]
         Filter posts to show only posts having at least one of the ``tags``.
@@ -105,6 +111,7 @@ class PostList(Directive):
         'start': int,
         'stop': int,
         'reverse': directives.flag,
+        'sort': directives.unchanged,
         'tags': directives.unchanged,
         'slugs': directives.unchanged,
         'all': directives.flag,
@@ -124,6 +131,7 @@ class PostList(Directive):
         show_all = self.options.get('all', False)
         lang = self.options.get('lang', utils.LocaleBorg().current_lang)
         template = self.options.get('template', 'post_list_directive.tmpl')
+        sort = self.options.get('sort')
         if self.site.invariant:  # for testing purposes
             post_list_id = self.options.get('id', 'post_list_' + 'fixedvaluethatisnotauuid')
         else:
@@ -150,6 +158,9 @@ class PostList(Directive):
 
             filtered_timeline.append(post)
 
+        if sort:
+            filtered_timeline = natsort.natsorted(filtered_timeline, key=lambda post: post.meta[lang][sort], alg=natsort.ns.F | natsort.ns.IC)
+
         for post in filtered_timeline[start:stop:step]:
             if slugs:
                 cont = True
@@ -160,10 +171,15 @@ class PostList(Directive):
                 if cont:
                     continue
 
+            bp = post.translated_base_path(lang)
+            if os.path.exists(bp):
+                self.state.document.settings.record_dependencies.add(bp)
+
             posts += [post]
 
         if not posts:
             return []
+        self.state.document.settings.record_dependencies.add("####MAGIC####TIMELINE")
 
         template_data = {
             'lang': lang,

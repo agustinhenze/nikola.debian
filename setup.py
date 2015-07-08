@@ -1,18 +1,12 @@
 #!/usr/bin/env python
 
-# find_package data is
-# (c) 2005 Ian Bicking and contributors; written for Paste
-# (http://pythonpaste.org)
-# Licensed under the MIT license:
-# http://www.opensource.org/licenses/mit-license.php
-
 # Don't use __future__ in this script, it breaks buildout
 # from __future__ import print_function
 import os
 import subprocess
 import sys
 import shutil
-from setuptools import setup
+from setuptools import setup, find_packages
 from setuptools.command.install import install
 from setuptools.command.test import test as TestCommand
 
@@ -44,8 +38,8 @@ with open('requirements-tests.txt', 'r') as fh:
     extras['tests'] = [l.strip() for l in fh][1:]
 
 # ########## platform specific stuff #############
-if sys.version_info[0] == 2 and sys.version_info[1] < 6:
-    raise Exception('Python 2 version < 2.6 is not supported')
+if sys.version_info[0] == 2 and sys.version_info[1] < 7:
+    raise Exception('Python 2 version < 2.7 is not supported')
 elif sys.version_info[0] == 3 and sys.version_info[1] < 3:
     raise Exception('Python 3 version < 3.3 is not supported')
 
@@ -81,7 +75,7 @@ def expands_symlinks_for_windows():
     path to the file it points to. If not corrected, installing from a git
     clone will end with some files with bad content
 
-    After install the working copy  will be dirty (symlink markers rewroted with
+    After install the working copy will be dirty (symlink markers overwritten with
     real content)
     """
     if sys.platform != 'win32':
@@ -95,37 +89,11 @@ def expands_symlinks_for_windows():
     failures = winutils.fix_all_git_symlinked(localdir)
     sys.path = oldpath
     del sys.modules['winutils']
-    print('WARNING: your working copy is now dirty by changes in samplesite, sphinx and themes')
-    if failures:
+    if failures != -1:
+        print('WARNING: your working copy is now dirty by changes in samplesite, sphinx and themes')
+    if failures > 0:
         raise Exception("Error: \n\tnot all symlinked files could be fixed." +
                         "\n\tYour best bet is to start again from clean.")
-
-
-def install_manpages(root, prefix):
-    try:
-        man_pages = [
-            ('docs/man/nikola.1', 'share/man/man1/nikola.1'),
-        ]
-        join = os.path.join
-        normpath = os.path.normpath
-        if root is not None:
-            prefix = os.path.realpath(root) + os.path.sep + prefix
-        for src, dst in man_pages:
-            path_dst = join(normpath(prefix), normpath(dst))
-            try:
-                os.makedirs(os.path.dirname(path_dst))
-            except OSError:
-                pass
-            rst2man_cmd = ['rst2man.py', 'rst2man']
-            for rst2man in rst2man_cmd:
-                try:
-                    subprocess.call([rst2man, src, path_dst])
-                except OSError:
-                    continue
-                else:
-                    break
-    except Exception as e:
-        print("Not installing the man pages:", e)
 
 
 def remove_old_files(self):
@@ -141,27 +109,16 @@ class nikola_install(install):
         expands_symlinks_for_windows()
         remove_old_files(self)
         install.run(self)
-        install_manpages(self.root, self.prefix)
 
 
 setup(name='Nikola',
-      version='7.1.0',
+      version='7.6.0',
       description='A modular, fast, simple, static website generator',
       long_description=open('README.rst').read(),
       author='Roberto Alsina and others',
       author_email='ralsina@netmanagers.com.ar',
-      url='http://getnikola.com',
-      packages=['nikola',
-                'nikola.plugins',
-                'nikola.plugins.command',
-                'nikola.plugins.compile',
-                'nikola.plugins.compile.ipynb',
-                'nikola.plugins.compile.markdown',
-                'nikola.plugins.compile.rest',
-                'nikola.plugins.task',
-                'nikola.plugins.task.sitemap',
-                'nikola.plugins.template',
-                ],
+      url='https://getnikola.com/',
+      packages=find_packages(exclude=('tests',)),
       license='MIT',
       keywords='website, static',
       classifiers=('Development Status :: 5 - Production/Stable',
@@ -176,7 +133,6 @@ setup(name='Nikola',
                    'Operating System :: POSIX',
                    'Operating System :: Unix',
                    'Programming Language :: Python',
-                   'Programming Language :: Python :: 2.6',
                    'Programming Language :: Python :: 2.7',
                    'Programming Language :: Python :: 3.3',
                    'Programming Language :: Python :: 3.4',
@@ -193,6 +149,7 @@ setup(name='Nikola',
                'docs/manual.txt',
                'docs/theming.txt',
                'docs/extending.txt']),
+              ('share/man/man1', ['docs/man/nikola.1.gz']),
       ],
       entry_points = {
           'console_scripts': [

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Copyright © 2012-2014 Roberto Alsina and others.
+# Copyright © 2012-2015 Roberto Alsina and others.
 
 # Permission is hereby granted, free of charge, to any
 # person obtaining a copy of this software and associated
@@ -27,66 +27,78 @@
 from __future__ import unicode_literals
 import io
 import os
-import re
 
-try:
-    import docutils.core
-    import docutils.nodes
-    import docutils.utils
-    import docutils.io
-    import docutils.readers.standalone
-    import docutils.writers.html4css1
-    has_docutils = True
-except ImportError:
-    has_docutils = False
+import docutils.core
+import docutils.nodes
+import docutils.utils
+import docutils.io
+import docutils.readers.standalone
+import docutils.writers.html4css1
 
 from nikola.plugin_categories import PageCompiler
-from nikola.utils import get_logger, makedirs, req_missing, write_metadata
+from nikola.utils import unicode_str, get_logger, makedirs, write_metadata
 
 
 class CompileRest(PageCompiler):
-    """Compile reSt into HTML."""
+    """Compile reStructuredText into HTML."""
 
     name = "rest"
+    friendly_name = "reStructuredText"
     demote_headers = True
     logger = None
 
-    def compile_html(self, source, dest, is_two_file=True):
-        """Compile reSt into HTML."""
+    def _read_extra_deps(self, post):
+        """Reads contents of .dep file and returns them as a list"""
+        dep_path = post.base_path + '.dep'
+        if os.path.isfile(dep_path):
+            with io.open(dep_path, 'r+', encoding='utf8') as depf:
+                deps = [l.strip() for l in depf.readlines()]
+                return deps
+        return []
 
-        if not has_docutils:
-            req_missing(['docutils'], 'build this site (compile reStructuredText)')
+    def register_extra_dependencies(self, post):
+        """Adds dependency to post object to check .dep file."""
+        post.add_dependency(lambda: self._read_extra_deps(post), 'fragment')
+
+    def compile_html_string(self, data, source_path=None, is_two_file=True):
+        """Compile reSt into HTML strings."""
+        # If errors occur, this will be added to the line number reported by
+        # docutils so the line number matches the actual line number (off by
+        # 7 with default metadata, could be more or less depending on the post).
+        add_ln = 0
+        if not is_two_file:
+            m_data, data = self.split_metadata(data)
+            add_ln = len(m_data.splitlines()) + 1
+
+        default_template_path = os.path.join(os.path.dirname(__file__), 'template.txt')
+        output, error_level, deps = rst2html(
+            data, settings_overrides={
+                'initial_header_level': 1,
+                'record_dependencies': True,
+                'stylesheet_path': None,
+                'link_stylesheet': True,
+                'syntax_highlight': 'short',
+                'math_output': 'mathjax',
+                'template': default_template_path,
+            }, logger=self.logger, source_path=source_path, l_add_ln=add_ln, transforms=self.site.rst_transforms)
+        if not isinstance(output, unicode_str):
+            # To prevent some weird bugs here or there.
+            # Original issue: empty files.  `output` became a bytestring.
+            output = output.decode('utf-8')
+        return output, error_level, deps
+
+    def compile_html(self, source, dest, is_two_file=True):
+        """Compile reSt into HTML files."""
         makedirs(os.path.dirname(dest))
         error_level = 100
         with io.open(dest, "w+", encoding="utf8") as out_file:
             with io.open(source, "r", encoding="utf8") as in_file:
                 data = in_file.read()
-                add_ln = 0
-                if not is_two_file:
-                    spl = re.split('(\n\n|\r\n\r\n)', data, maxsplit=1)
-                    data = spl[-1]
-                    if len(spl) != 1:
-                        # If errors occur, this will be added to the line
-                        # number reported by docutils so the line number
-                        # matches the actual line number (off by 7 with default
-                        # metadata, could be more or less depending on the post
-                        # author).
-                        add_ln = len(spl[0].splitlines()) + 1
-
-                default_template_path = os.path.join(os.path.dirname(__file__), 'template.txt')
-                output, error_level, deps = rst2html(
-                    data, settings_overrides={
-                        'initial_header_level': 1,
-                        'record_dependencies': True,
-                        'stylesheet_path': None,
-                        'link_stylesheet': True,
-                        'syntax_highlight': 'short',
-                        'math_output': 'mathjax',
-                        'template': default_template_path,
-                    }, logger=self.logger, source_path=source, l_add_ln=add_ln)
+                output, error_level, deps = self.compile_html_string(data, source, is_two_file)
                 out_file.write(output)
             deps_path = dest + '.dep'
             if deps.list:
+                deps.list = [p for p in deps.list if p != dest]  # Don't depend on yourself (#1671)
                 with io.open(deps_path, "w+", encoding="utf8") as deps_file:
                     deps_file.write('\n'.join(deps.list))
             else:
@@ -111,15 +123,18 @@ class CompileRest(PageCompiler):
         with io.open(path, "w+", encoding="utf8") as fd:
             if onefile:
                 fd.write(write_metadata(metadata))
-            fd.write('\n' + content)
+                fd.write('\n')
+            fd.write(content)
 
     def set_site(self, site):
+        self.config_dependencies = []
         for plugin_info in site.plugin_manager.getPluginsOfCategory("RestExtension"):
             if plugin_info.name in site.config['DISABLED_PLUGINS']:
                 site.plugin_manager.removePluginFromCategory(plugin_info, "RestExtension")
                 continue
 
             site.plugin_manager.activatePluginByName(plugin_info.name)
+            self.config_dependencies.append(plugin_info.name)
             plugin_info.plugin_object.set_site(site)
             plugin_info.plugin_object.short_help = plugin_info.description
 
@@ -160,6 +175,13 @@ def get_observer(settings):
 
 class NikolaReader(docutils.readers.standalone.Reader):
 
+    def __init__(self, *args, **kwargs):
+        self.transforms = kwargs.pop('transforms', [])
+        docutils.readers.standalone.Reader.__init__(self, *args, **kwargs)
+
+    def get_transforms(self):
+        return docutils.readers.standalone.Reader(self).get_transforms() + self.transforms
+
     def new_document(self):
         """Create and return a new empty document tree (root node)."""
         document = docutils.utils.new_document(self.source.source_path, self.settings)
@@ -199,7 +221,7 @@ def add_node(node, visit_function=None, depart_function=None):
         def depart_Math(self, node):
             self.body.append('</math>')
 
-    For full example, you can refer to `Microdata plugin <http://plugins.getnikola.com/#microdata>`_
+    For full example, you can refer to `Microdata plugin <https://plugins.getnikola.com/#microdata>`_
     """
     docutils.nodes._add_node_class_names([node.__name__])
     if visit_function:
@@ -213,7 +235,7 @@ def rst2html(source, source_path=None, source_class=docutils.io.StringInput,
              parser=None, parser_name='restructuredtext', writer=None,
              writer_name='html', settings=None, settings_spec=None,
              settings_overrides=None, config_section=None,
-             enable_exit_status=None, logger=None, l_add_ln=0):
+             enable_exit_status=None, logger=None, l_add_ln=0, transforms=None):
     """
     Set up & run a `Publisher`, and return a dictionary of document parts.
     Dictionary keys are the names of parts, and values are Unicode strings;
@@ -231,7 +253,7 @@ def rst2html(source, source_path=None, source_class=docutils.io.StringInput,
              reStructuredText syntax errors.
     """
     if reader is None:
-        reader = NikolaReader()
+        reader = NikolaReader(transforms=transforms)
         # For our custom logging, we have special needs and special settings we
         # specify here.
         # logger    a logger from Nikola
