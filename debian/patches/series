@@ -1,1 +1,2 @@
 0001-Fix-quoting-when-generate-zsh-completion.patch
+0002-Replace-strict-dependency-on-dateutil-for-the-current-one-in-debian.patch
