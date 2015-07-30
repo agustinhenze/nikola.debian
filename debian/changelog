@@ -1,3 +1,9 @@
+nikola (7.6.0-3) unstable; urgency=medium
+
+  * Added bootstrap(3)-jinja themes missing pieces (Closes: #793953).
+
+ -- Ulises Vitulli <dererk@debian.org>  Wed, 29 Jul 2015 22:38:10 -0300
+
 nikola (7.6.0-2) unstable; urgency=medium
 
   * Add missing build-dep on python-requests (Closes: #792352).
