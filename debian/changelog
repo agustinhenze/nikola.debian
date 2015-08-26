@@ -1,3 +1,12 @@
+nikola (7.6.4-1) unstable; urgency=medium
+
+  * Add Recommends on python-ws4py and python-watchdog for `nikola auto`
+    (Closes: #795769)
+  * Set version number on (build)?dependencies
+  * Imported Upstream version 7.6.4
+
+ -- Agustin Henze <tin@debian.org>  Wed, 26 Aug 2015 07:43:19 -0300
+
 nikola (7.6.0-3) unstable; urgency=medium
 
   * Added bootstrap(3)-jinja themes missing pieces (Closes: #793953).
