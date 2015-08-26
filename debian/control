@@ -22,7 +22,7 @@ Build-Depends:
  python-imaging,
  python-natsort,
  python-dateutil,
- python-requests (>= 2.2.0)
+ python-requests (>= 2.2.0),
 Standards-Version: 3.9.6
 X-Python-Version: >= 2.7
 Homepage: http://getnikola.com/
@@ -53,6 +53,8 @@ Recommends:
  python-requests,
  python-typogrify,
  python-livereload,
+ python-ws4py,
+ python-watchdog,
 Suggests:
  python-jinja2,
  python-feedparser,
@@ -65,7 +67,7 @@ Suggests:
  python-creoleparser,
  txt2tags,
  node-less,
- python-pygal
+ python-pygal,
 Description: simple yet powerful and flexible static website and blog generator
  Nikola is a static site and blog generator. Feed information to it on one
  side and get a ready-to-deploy website on the other.
