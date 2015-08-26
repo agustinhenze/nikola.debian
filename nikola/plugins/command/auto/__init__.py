@@ -24,6 +24,8 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+"""Automatic rebuilds for Nikola."""
+
 from __future__ import print_function
 
 import json
@@ -31,10 +33,13 @@ import mimetypes
 import os
 import re
 import subprocess
+import sys
+import time
 try:
     from urlparse import urlparse
+    from urllib2 import unquote
 except ImportError:
-    from urllib.parse import urlparse  # NOQA
+    from urllib.parse import urlparse, unquote  # NOQA
 import webbrowser
 from wsgiref.simple_server import make_server
 import wsgiref.util
@@ -42,7 +47,7 @@ import wsgiref.util
 from blinker import signal
 try:
     from ws4py.websocket import WebSocket
-    from ws4py.server.wsgirefserver import WSGIServer, WebSocketWSGIRequestHandler
+    from ws4py.server.wsgirefserver import WSGIServer, WebSocketWSGIRequestHandler, WebSocketWSGIHandler
     from ws4py.server.wsgiutils import WebSocketWSGIApplication
     from ws4py.messaging import TextMessage
 except ImportError:
@@ -58,7 +63,7 @@ except ImportError:
 
 
 from nikola.plugin_categories import Command
-from nikola.utils import req_missing, get_logger, get_theme_path
+from nikola.utils import req_missing, get_logger, get_theme_path, STDERR_HANDLER
 LRJS_PATH = os.path.join(os.path.dirname(__file__), 'livereload.js')
 error_signal = signal('error')
 refresh_signal = signal('refresh')
@@ -74,9 +79,12 @@ ERROR {}
 
 
 class CommandAuto(Command):
-    """Start debugging console."""
+
+    """Automatic rebuilds for Nikola."""
+
     name = "auto"
     logger = None
+    has_server = True
     doc_purpose = "builds and serves a site; automatically detects site changes, rebuilds, and optionally refreshes a browser"
     cmd_options = [
         {
@@ -100,7 +108,7 @@ class CommandAuto(Command):
             'short': 'b',
             'long': 'browser',
             'type': bool,
-            'help': 'Start a web browser.',
+            'help': 'Start a web browser',
             'default': False,
         },
         {
@@ -111,12 +119,18 @@ class CommandAuto(Command):
             'type': bool,
             'help': 'Use IPv6',
         },
+        {
+            'name': 'no-server',
+            'long': 'no-server',
+            'default': False,
+            'type': bool,
+            'help': 'Disable the server, automate rebuilds only'
+        },
     ]
 
     def _execute(self, options, args):
         """Start the watcher."""
-
-        self.logger = get_logger('auto', self.site.loghandlers)
+        self.logger = get_logger('auto', STDERR_HANDLER)
         LRSocket.logger = self.logger
 
         if WebSocket is object and watchdog is None:
@@ -166,10 +180,14 @@ class CommandAuto(Command):
 
         host = options['address'].strip('[').strip(']') or dhost
 
+        # Server can be disabled (Issue #1883)
+        self.has_server = not options['no-server']
+
         # Instantiate global observer
         observer = Observer()
-        # Watch output folders and trigger reloads
-        observer.schedule(OurWatchHandler(self.do_refresh), out_folder, recursive=True)
+        if self.has_server:
+            # Watch output folders and trigger reloads
+            observer.schedule(OurWatchHandler(self.do_refresh), out_folder, recursive=True)
 
         # Watch input folders and trigger rebuilds
         for p in watched:
@@ -181,86 +199,137 @@ class CommandAuto(Command):
         _conf_dn = os.path.dirname(_conf_fn)
         observer.schedule(ConfigWatchHandler(_conf_fn, self.do_rebuild), _conf_dn, recursive=False)
 
-        observer.start()
+        try:
+            self.logger.info("Watching files for changes...")
+            observer.start()
+        except KeyboardInterrupt:
+            pass
 
         parent = self
 
         class Mixed(WebSocketWSGIApplication):
-            """A class that supports WS and HTTP protocols in the same port."""
+
+            """A class that supports WS and HTTP protocols on the same port."""
+
             def __call__(self, environ, start_response):
                 if environ.get('HTTP_UPGRADE') is None:
                     return parent.serve_static(environ, start_response)
                 return super(Mixed, self).__call__(environ, start_response)
 
-        ws = make_server(
-            host, port, server_class=WSGIServer,
-            handler_class=WebSocketWSGIRequestHandler,
-            app=Mixed(handler_cls=LRSocket)
-        )
-        ws.initialize_websockets_manager()
-        self.logger.info("Serving HTTP on {0} port {1}...".format(host, port))
-        if browser:
-            if options['ipv6'] or '::' in host:
-                server_url = "http://[{0}]:{1}/".format(host, port)
-            else:
-                server_url = "http://{0}:{1}/".format(host, port)
+        if self.has_server:
+            ws = make_server(
+                host, port, server_class=WSGIServer,
+                handler_class=WebSocketWSGIRequestHandler,
+                app=Mixed(handler_cls=LRSocket)
+            )
+            ws.initialize_websockets_manager()
+            self.logger.info("Serving HTTP on {0} port {1}...".format(host, port))
+            if browser:
+                if options['ipv6'] or '::' in host:
+                    server_url = "http://[{0}]:{1}/".format(host, port)
+                else:
+                    server_url = "http://{0}:{1}/".format(host, port)
 
-            self.logger.info("Opening {0} in the default web browser...".format(server_url))
-            # Yes, this is racy
-            webbrowser.open('http://{0}:{1}'.format(host, port))
+                self.logger.info("Opening {0} in the default web browser...".format(server_url))
+                # Yes, this is racy
+                webbrowser.open('http://{0}:{1}'.format(host, port))
 
-        try:
-            ws.serve_forever()
-        except KeyboardInterrupt:
-            self.logger.info("Server is shutting down.")
-            observer.stop()
-            observer.join()
+            try:
+                ws.serve_forever()
+            except KeyboardInterrupt:
+                self.logger.info("Server is shutting down.")
+                # This is a hack, but something is locking up in a futex
+                # and exit() doesn't work.
+                os.kill(os.getpid(), 15)
+        else:
+            # Workaround: can’t have nothing running (instant exit)
+            #    but also can’t join threads (no way to exit)
+            # The joys of threading.
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                self.logger.info("Shutting down.")
+                # This is a hack, but something is locking up in a futex
+                # and exit() doesn't work.
+                os.kill(os.getpid(), 15)
 
     def do_rebuild(self, event):
-        self.logger.info('REBUILDING SITE (from {0})'.format(event.src_path))
+        """Rebuild the site."""
+        # Move events have a dest_path, some editors like gedit use a
+        # move on larger save operations for write protection
+        event_path = event.dest_path if hasattr(event, 'dest_path') else event.src_path
+        fname = os.path.basename(event_path)
+        if (fname.endswith('~') or
+                fname.startswith('.') or
+                os.path.isdir(event_path)):  # Skip on folders, these are usually duplicates
+            return
+        self.logger.info('REBUILDING SITE (from {0})'.format(event_path))
         p = subprocess.Popen(self.cmd_arguments, stderr=subprocess.PIPE)
+        error = p.stderr.read()
+        errord = error.decode('utf-8')
         if p.wait() != 0:
-            error = p.stderr.read()
-            self.logger.error(error)
-            error_signal.send(error=error)
+            self.logger.error(errord)
+            error_signal.send(error=errord)
         else:
-            error = p.stderr.read()
-            print(error)
+            print(errord)
 
     def do_refresh(self, event):
-        self.logger.info('REFRESHING: {0}'.format(event.src_path))
-        p = os.path.relpath(event.src_path, os.path.abspath(self.site.config['OUTPUT_FOLDER']))
+        """Refresh the page."""
+        # Move events have a dest_path, some editors like gedit use a
+        # move on larger save operations for write protection
+        event_path = event.dest_path if hasattr(event, 'dest_path') else event.src_path
+        self.logger.info('REFRESHING: {0}'.format(event_path))
+        p = os.path.relpath(event_path, os.path.abspath(self.site.config['OUTPUT_FOLDER']))
         refresh_signal.send(path=p)
 
     def serve_static(self, environ, start_response):
         """Trivial static file server."""
         uri = wsgiref.util.request_uri(environ)
         p_uri = urlparse(uri)
-        f_path = os.path.join(self.site.config['OUTPUT_FOLDER'], *p_uri.path.split('/'))
-        mimetype = mimetypes.guess_type(uri)[0] or 'text/html'
+        f_path = os.path.join(self.site.config['OUTPUT_FOLDER'], *[unquote(x) for x in p_uri.path.split('/')])
+
+        # ‘Pretty’ URIs and root are assumed to be HTML
+        mimetype = 'text/html' if uri.endswith('/') else mimetypes.guess_type(uri)[0] or 'application/octet-stream'
 
         if os.path.isdir(f_path):
+            if not f_path.endswith('/'):  # Redirect to avoid breakage
+                start_response('301 Redirect', [('Location', p_uri.path + '/')])
+                return []
             f_path = os.path.join(f_path, self.site.config['INDEX_FILE'])
+            mimetype = 'text/html'
 
         if p_uri.path == '/robots.txt':
             start_response('200 OK', [('Content-type', 'text/plain')])
-            return ['User-Agent: *\nDisallow: /\n']
+            return ['User-Agent: *\nDisallow: /\n'.encode('utf-8')]
         elif os.path.isfile(f_path):
             with open(f_path, 'rb') as fd:
                 start_response('200 OK', [('Content-type', mimetype)])
-                return [self.inject_js(mimetype, fd.read())]
+                return [self.file_filter(mimetype, fd.read())]
         elif p_uri.path == '/livereload.js':
             with open(LRJS_PATH, 'rb') as fd:
                 start_response('200 OK', [('Content-type', mimetype)])
-                return [self.inject_js(mimetype, fd.read())]
+                return [self.file_filter(mimetype, fd.read())]
         start_response('404 ERR', [])
-        return [self.inject_js('text/html', ERROR_N.format(404).format(uri))]
+        return [self.file_filter('text/html', ERROR_N.format(404).format(uri).encode('utf-8'))]
 
-    def inject_js(self, mimetype, data):
-        """Inject livereload.js in HTML files."""
+    def file_filter(self, mimetype, data):
+        """Apply necessary changes to document before serving."""
         if mimetype == 'text/html':
-            data = re.sub('</head>', self.snippet, data.decode('utf8'), 1, re.IGNORECASE)
+            data = data.decode('utf8')
+            data = self.remove_base_tag(data)
+            data = self.inject_js(data)
             data = data.encode('utf8')
+        return data
+
+    def inject_js(self, data):
+        """Inject livereload.js."""
+        data = re.sub('</head>', self.snippet, data, 1, re.IGNORECASE)
+        return data
+
+    def remove_base_tag(self, data):
+        """Comment out any <base> to allow local resolution of relative URLs."""
+        data = re.sub(r'<base\s([^>]*)>', '<!--base \g<1>-->', data, re.IGNORECASE)
         return data
 
 
@@ -268,14 +337,17 @@ pending = []
 
 
 class LRSocket(WebSocket):
+
     """Speak Livereload protocol."""
 
     def __init__(self, *a, **kw):
+        """Initialize protocol handler."""
         refresh_signal.connect(self.notify)
         error_signal.connect(self.send_error)
         super(LRSocket, self).__init__(*a, **kw)
 
     def received_message(self, message):
+        """Handle received message."""
         message = json.loads(message.data.decode('utf8'))
         self.logger.info('<--- {0}'.format(message))
         response = None
@@ -364,3 +436,25 @@ class ConfigWatchHandler(FileSystemEventHandler):
         """Call the provided function on any event."""
         if event._src_path == self.configuration_filename:
             self.function(event)
+
+
+try:
+    # Monkeypatch to hide Broken Pipe Errors
+    f = WebSocketWSGIHandler.finish_response
+
+    if sys.version_info[0] == 3:
+        EX = BrokenPipeError  # NOQA
+    else:
+        EX = IOError
+
+    def finish_response(self):
+        """Monkeypatched finish_response that ignores broken pipes."""
+        try:
+            f(self)
+        except EX:  # Client closed the connection, not a real error
+            pass
+
+    WebSocketWSGIHandler.finish_response = finish_response
+except NameError:
+    # In case there is no WebSocketWSGIHandler because of a failed import.
+    pass

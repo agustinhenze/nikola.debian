@@ -6,7 +6,7 @@ Nikola
 A Static Site and Blog Generator
 --------------------------------
 
-:Version: Nikola v7.6.0
+:Version: Nikola v7.6.4
 :Manual section: 1
 :Manual group: User Commands
 
@@ -94,7 +94,7 @@ The most basic commands needed to get by are:
     deploy the site using the ``DEPLOY_COMMANDS`` setting
 ``nikola github_deploy```
     deploy the site to GitHub Pages
-``nikola serve [-p PORT] [-a ADDRESS] [-b|--browser] [-6|--ipv6]``
+``nikola serve [-p PORT] [-a ADDRESS] [-d|--detach] [-b|--browser] [-6|--ipv6]``
     start development web server
 ``nikola auto [-p PORT] [-a ADDRESS] [-b|--browser] [-6|--ipv6]``
     start development web server with automated rebuilds and reloads

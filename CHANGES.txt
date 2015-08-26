@@ -1,3 +1,131 @@
+New in v7.6.4
+=============
+
+Features
+--------
+
+* Checking remote links also checks redirects (nikola check -lr)
+* Update suggested license to its latest version (Issue #1950)
+* Add Punjabi language, by Jasdeep Singh (Issue #1940)
+* New option to use custom, and several ``TEASER_END`` values
+
+Bugfixes
+--------
+
+* Rewrite srcset links (Issue #1939)
+* Add dependencies for include tag in Mako (Issue #1956)
+* Don’t duplicate BLOG_TITLE in the front page title (Issue #1952)
+* Escape instad of strip HTML in titles (Issue #1952)
+* Make LINK_CHECK_WHITELIST apply to remote link checks
+* Make STORY_INDEX work together with PRETTY_URLS (Issue #1949)
+* Refactor new_post to match lazy plugin loading (Issue #1943)
+* Make Nikola startup faster by not loading useless plugins (Issue #1825)
+* Ignore sliced multibyte characters when reading metadata for sitemaps
+* Fix NameError caused by failed import in auto plugin.
+
+New in v7.6.3
+=============
+
+Features
+--------
+
+* New translations: Serbian and Bosnian, by saleone
+* Added mechanism for rest extensions to depend on configuration options
+  (Issue #1919)
+* Render Jupyter notebooks (ipynb) in listings (Issue #1900)
+
+Bugfixes
+--------
+
+* Ignore sliced multibyte characters when reading metadata for sitemaps
+* Handle folders without trailing slashes in nikola auto (Issue #1933)
+* Set a base element to aid relative URL resolution, stripped on-the-fly
+  when using the auto or serve command to view site locally. (Issue #1922)
+* Rebuild archives when post slugs and titles change (Issue #1931)
+* Handle special characters in URLs in nikola auto (Issue #1925)
+* Avoid Broken Pipe error in nikola auto (Issue #1906)
+* "nikola auto" serving implicit index.html with wrong mime type (Issue #1921)
+* Handle non-integer shutter speeds and other variables in WordPress
+  importer (Issue #1917)
+
+
+New in v7.6.2
+=============
+
+Features
+--------
+
+* Make the Google Search example prettier, integrating well with
+  Bootstrap 3 (Issue #1912)
+* Add categories filter to post list directive (via Issue #1889)
+* Remove empty directories with nikola check --clean-files (Issue #1873)
+
+Bugfixes
+--------
+
+* Don't auto-rebuild on changes to ".foo" or "foo~" or changes in folders.
+* Don't assume things are HTML in auto mode (Issue #1915)
+* Don’t rebuild Atom syndication files unnecessarily often
+* Include .php files in sitemaps
+* Retry all client errors (4xx) to HEAD as GET reques when checking remote links
+* Graceful fallback in ``nikola serve --detach`` on Windows (Issue #1913)
+* Don't auto-rebuild on changes to ".foo" or "foo~" or changes in folders
+* auto should also rebuild in response to move events
+* Don’t get metadata from file if compiler-specific metadata exist (Issue #1904)
+* Fix PRETTY_URLS prompt for Windows (Issue #1901)
+* Fix reST and Markdown title extraction from documents (Issue #1895, #1898)
+* Minor improvements to the extending document
+* Re-add the hack to kill nikola auto on ^C (Issue #1893)
+
+New in v7.6.1
+=============
+
+Features
+--------
+
+* Several improvements to WordPress importer (PR #1867):
+
+  * Allowing to export categories and category hierarchy with
+    --export-categories-as-categories
+  * Allowing to exclude private posts, and allowing to include empty posts
+  * Allowing to use HTTP authentication for downloads with --download-auth
+    (PR #1848)
+  * Allowing to export comments with --export-comments
+  * Allowing to use WordPress page compiler to directly convert posts
+    to HTML on import with --transform-to-html
+  * Allowing to use WordPress page compiler on imported site instead of
+    converting posts to markdown with --use-wordpress-compiler
+  * Allowing to automatically install the WordPress page compiler when
+    needed with --install-wordpress-compiler
+  * Exporting information on attachments per post as JSON (#1867 and #1888)
+  * Exporting post status and excerpt
+
+* New ‘pagekind’ variable available to identify different kind of pages from theme templates
+* Add ``--no-server`` option to ``nikola auto`` (Issue #1883)
+* Always return unicode in slugify (Issue #1885)
+* Remove logging handlers (Issue #1797)
+* Add ``-d``, ``--detach`` option to ``nikola serve`` (Issue #1871)
+* Use provided teaser format (``*_READ_MORE_LINK``) with custom teaser text
+  (Issue #1879)
+* Delete old ``bootstrap`` theme (use ``bootstrap3`` instead)
+* Screen reader-friendly navbar collapses and dropdowns (Issue #1863)
+* Modern reST stylesheets, based in part on Bootstrap 3 (Issue #1150)
+
+Bugfixes
+--------
+
+* Use ``http`` as fallback in plugin/theme installers if a SSL error occurs
+  (Issue getnikola/nikola-themes#49)
+* Add missing ``xmlns:xhtml`` namespace to sitemaps (Issue #1890)
+* Fixed superfluous rebuild problems with Python 3. Note that this will cause
+  rebuilds for most sites. (Issue #1887)
+* Fix links in sample post (Issue #1874)
+* Don't use deprecated Yapsy methods (Isue #1868)
+* Surpress wincing when auto is aborted during rebuilding
+* Show tags only from the current language on tag listing pages (Issue #1856)
+* Remove gap between line numbers and code (Issue #1859)
+* Fix spurious warnings about posts published in the future (Issue #1850)
+
 New in v7.6.0
 =============
 
