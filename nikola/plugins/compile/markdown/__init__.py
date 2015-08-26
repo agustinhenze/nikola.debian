@@ -44,6 +44,7 @@ from nikola.utils import makedirs, req_missing, write_metadata
 
 
 class CompileMarkdown(PageCompiler):
+
     """Compile Markdown into HTML."""
 
     name = "markdown"
@@ -53,21 +54,18 @@ class CompileMarkdown(PageCompiler):
     site = None
 
     def set_site(self, site):
+        """Set Nikola site."""
+        super(CompileMarkdown, self).set_site(site)
         self.config_dependencies = []
-        for plugin_info in site.plugin_manager.getPluginsOfCategory("MarkdownExtension"):
-            if plugin_info.name in site.config['DISABLED_PLUGINS']:
-                site.plugin_manager.removePluginFromCategory(plugin_info, "MarkdownExtension")
-                continue
+        for plugin_info in self.get_compiler_extensions():
             self.config_dependencies.append(plugin_info.name)
-            site.plugin_manager.activatePluginByName(plugin_info.name)
-            plugin_info.plugin_object.set_site(site)
             self.extensions.append(plugin_info.plugin_object)
             plugin_info.plugin_object.short_help = plugin_info.description
 
         self.config_dependencies.append(str(sorted(site.config.get("MARKDOWN_EXTENSIONS"))))
-        return super(CompileMarkdown, self).set_site(site)
 
     def compile_html(self, source, dest, is_two_file=True):
+        """Compile source file into HTML and save as dest."""
         if markdown is None:
             req_missing(['markdown'], 'build this site (compile Markdown)')
         makedirs(os.path.dirname(dest))
@@ -81,6 +79,7 @@ class CompileMarkdown(PageCompiler):
             out_file.write(output)
 
     def create_post(self, path, **kw):
+        """Create a new post."""
         content = kw.pop('content', None)
         onefile = kw.pop('onefile', False)
         # is_page is not used by create_post as of now.

@@ -24,10 +24,12 @@
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+"""Install a theme."""
+
 from __future__ import print_function
 import os
 import io
-import json
+import time
 import requests
 
 import pygments
@@ -41,6 +43,7 @@ LOGGER = utils.get_logger('install_theme', utils.STDERR_HANDLER)
 
 
 class CommandInstallTheme(Command):
+
     """Install a theme."""
 
     name = "install_theme"
@@ -95,8 +98,13 @@ class CommandInstallTheme(Command):
         if name is None and not listing:
             LOGGER.error("This command needs either a theme name or the -l option.")
             return False
-        data = requests.get(url).text
-        data = json.loads(data)
+        try:
+            data = requests.get(url).json()
+        except requests.exceptions.SSLError:
+            LOGGER.warning("SSL error, using http instead of https (press ^C to abort)")
+            time.sleep(1)
+            url = url.replace('https', 'http', 1)
+            data = requests.get(url).json()
         if listing:
             print("Themes:")
             print("-------")
@@ -122,11 +130,21 @@ class CommandInstallTheme(Command):
                 LOGGER.notice('Remember to set THEME="{0}" in conf.py to use this theme.'.format(origname))
 
     def do_install(self, name, data):
+        """Download and install a theme."""
         if name in data:
             utils.makedirs(self.output_dir)
-            LOGGER.info("Downloading '{0}'".format(data[name]))
+            url = data[name]
+            LOGGER.info("Downloading '{0}'".format(url))
+            try:
+                zip_data = requests.get(url).content
+            except requests.exceptions.SSLError:
+                LOGGER.warning("SSL error, using http instead of https (press ^C to abort)")
+                time.sleep(1)
+                url = url.replace('https', 'http', 1)
+                zip_data = requests.get(url).content
+
             zip_file = io.BytesIO()
-            zip_file.write(requests.get(data[name]).content)
+            zip_file.write(zip_data)
             LOGGER.info("Extracting '{0}' into themes/".format(name))
             utils.extract_all(zip_file)
             dest_path = os.path.join(self.output_dir, name)
